@@ -198,7 +198,12 @@
 .budget-table td.amount-column { white-space: nowrap; }
 .budget-progress-col { width: 180px; min-width: 140px; }
 .budget-row-muted td { color: var(--muted); }
-.budget-table .budget-badge { margin-left: 6px; }
+.budget-table .budget-badge {
+  margin-left: 6px;
+  max-inline-size: 24ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 
 /* ---------- 空状态与说明 ---------- */
 .budget-hint {

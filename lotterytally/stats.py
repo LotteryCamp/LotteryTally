@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import calendar
 import csv
+import importlib
 import io
 import json
 import os
@@ -338,26 +339,15 @@ def _load_ledger_snapshot() -> dict[str, Any]:
     )
 
     try:
-        from . import storage  # type: ignore[attr-defined]
-
+        storage = importlib.import_module(".storage", __package__)
+    except ModuleNotFoundError as error:
+        if error.name != f"{__package__}.storage":
+            raise
+    else:
         load_fn = getattr(storage, "load_ledger", None)
         if callable(load_fn):
-            if data_file:
-                try:
-                    loaded = load_fn(path=data_file)
-                    return _coerce_ledger_dict(loaded)
-                except TypeError:
-                    try:
-                        loaded = load_fn(data_file)
-                        return _coerce_ledger_dict(loaded)
-                    except TypeError:
-                        # 若 load_ledger() 不接受路径参数，回退到下方显式文件读取以防忽略 data_file
-                        pass
-            else:
-                loaded = load_fn()
-                return _coerce_ledger_dict(loaded)
-    except ImportError:
-        pass
+            loaded = load_fn(data_file) if data_file else load_fn()
+            return _coerce_ledger_dict(loaded)
 
     default_path = Path(__file__).resolve().parents[1] / "data" / "ledger.json"
     path = Path(data_file) if data_file else default_path

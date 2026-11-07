@@ -220,7 +220,7 @@ min_amount, max_amount, q, sort, preset, page
 
 | 模块 | 建议接口                                                     | 返回或职责                                           |
 | ---- | ------------------------------------------------------------ | ---------------------------------------------------- |
-| 存储 | `load_ledger()`                                              | 返回完整账本快照                                     |
+| 存储 | `load_ledger(path=None)`                                      | 返回完整账本快照；未指定时使用 `data/ledger.json`    |
 | 存储 | `update_ledger(change)`                                      | 在同一写入锁内读取最新账本、应用修改、校验并保存     |
 | 类别 | `list_categories(ledger, entry_type=None, active_only=False)` | 返回符合条件的类别列表                               |
 | 账目 | `create_entry(form_data)`、`update_entry(entry_id, form_data)`、`delete_entry(entry_id)` | 处理账目业务操作。校验错误携带字段和提示             |
@@ -246,7 +246,7 @@ min_amount, max_amount, q, sort, preset, page
 
 `update_ledger()` 应锁住完整的“读取 → 修改 → 写入”过程。只锁最后一步会出现两个请求都读到旧账本、后保存的请求覆盖先保存结果的问题。课程版可约定单进程运行，用进程内锁处理请求并发。
 
-写入时在账本同一目录生成临时文件，完整写入 UTF-8 JSON 后用 `os.replace()` 替换正式账本。首次启动且文件不存在时创建默认账本。默认使用运行目录的 `data/ledger.json`，可通过 `--data-file` 指定独立演示文件。仓库只跟踪虚构的 `data/ledger.example.json`，真实账本、演示运行文件和备份均加入忽略列表。读到已有但损坏的 JSON 时显示错误，保留原文件供恢复。
+写入时在账本同一目录生成临时文件，完整写入 UTF-8 JSON 后用 `os.replace()` 替换正式账本。首次启动且文件不存在时创建默认账本。`load_ledger(path=None)` 和 `update_ledger(change, path=None)` 使用同一数据文件；未指定时使用运行目录的 `data/ledger.json`，应用启动参数 `--data-file` 可指定独立演示文件。仓库只跟踪虚构的 `data/ledger.example.json`，真实账本、演示运行文件和备份均加入忽略列表。读到已有但损坏的 JSON 时显示错误，保留原文件供恢复。
 
 恢复流程按以下顺序执行。
 

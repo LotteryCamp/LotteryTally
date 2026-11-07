@@ -21,10 +21,10 @@ import os
 import sys
 import unittest
 
-# 让测试能直接 import 上一级目录的 csv_export
+# 把仓库根目录加进搜索路径，才能 import 到 lotterytally 包
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import csv_export  # noqa: E402
+from lotterytally import csv_export  # noqa: E402
 
 
 CATEGORIES = [

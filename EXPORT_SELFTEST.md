@@ -1,6 +1,6 @@
 # CSV 导出模块 自测记录
 
-模块：`csv_export.py`
+模块：`lotterytally/csv_export.py`
 负责人：蔡信坡 162404103
 记录时间：2026-11-07 14:36
 
@@ -17,7 +17,7 @@
 ## 二、自动化测试
 
 ```bash
-python -m unittest discover -s tests -v
+python -m unittest discover -s test -v
 ```
 
 结果：

@@ -9,6 +9,10 @@ csv_export.py 的单元测试
     - 逗号、换行、引号由 CSV 写入器正确处理
     - 公式型文本不被表格软件执行
     - 空结果导出带表头的空文件
+
+另外覆盖两条容易回归的行为：
+    - 默认保持调用方传入的顺序（不擅自重排）
+    - 非法金额和非法记录直接报错，不静默兜底
 """
 
 import csv
@@ -31,7 +35,7 @@ CATEGORIES = [
 
 
 def make_entry(**kwargs):
-    """构造一条默认账目，测试里只覆盖关心的字段。"""
+    """构造一条默认合法的账目，测试里只覆盖关心的字段。"""
     entry = {
         "id": "id-001",
         "date": "2026-11-07",
@@ -69,15 +73,28 @@ class TestCentsToYuan(unittest.TestCase):
             with self.subTest(cents=cents):
                 self.assertEqual(csv_export.cents_to_yuan(cents), expected)
 
-    def test_negative_and_invalid(self):
-        self.assertEqual(csv_export.cents_to_yuan(-4500), "-45.00")
-        # 脏数据不该让导出整体崩掉
-        self.assertEqual(csv_export.cents_to_yuan(None), "0.00")
-        self.assertEqual(csv_export.cents_to_yuan("abc"), "0.00")
+    def test_accepts_integral_float_and_string(self):
+        """JSON 里金额偶尔被写成 4500.0 或 \"4500\"，只要还是整数分就照收。"""
+        self.assertEqual(csv_export.cents_to_yuan(4500.0), "45.00")
+        self.assertEqual(csv_export.cents_to_yuan("4500"), "45.00")
+        self.assertEqual(csv_export.cents_to_yuan(" 4500 "), "45.00")
+
+    def test_invalid_amount_raises(self):
+        """非法金额必须报错。以前返回 0.00，脏数据会变成零元支出混进导出。"""
+        bad_values = [None, "abc", "", 45.5, True, False, [], {}]
+        for value in bad_values:
+            with self.subTest(value=value):
+                with self.assertRaises(csv_export.ExportError):
+                    csv_export.cents_to_yuan(value)
+
+    def test_negative_amount_raises(self):
+        """支出在数据里存正数，负数说明上游算错了。"""
+        with self.assertRaises(csv_export.ExportError):
+            csv_export.cents_to_yuan(-4500)
 
 
 class TestExportCsv(unittest.TestCase):
-    """主流程：表头、类型翻译、类别翻译、排序。"""
+    """主流程：表头、类型翻译、类别翻译、排序行为。"""
 
     def test_header_and_two_rows(self):
         entries = [
@@ -90,13 +107,35 @@ class TestExportCsv(unittest.TestCase):
 
         self.assertEqual(rows[0], csv_export.HEADER)
         self.assertEqual(len(rows), 3)
-        # 默认倒序，11-02 在前
-        self.assertEqual(rows[1][0], "2026-11-02")
-        self.assertEqual(rows[1][1], "支出")
-        self.assertEqual(rows[1][2], "饮食")
-        self.assertEqual(rows[1][3], "45.00")
-        self.assertEqual(rows[2][1], "收入")
-        self.assertEqual(rows[2][3], "3000.00")
+        # 默认保持传入顺序：11-01 在前
+        self.assertEqual(rows[1][0], "2026-11-01")
+        self.assertEqual(rows[1][1], "收入")
+        self.assertEqual(rows[1][3], "3000.00")
+        self.assertEqual(rows[2][1], "支出")
+        self.assertEqual(rows[2][2], "饮食")
+        self.assertEqual(rows[2][3], "45.00")
+
+    def test_default_keeps_input_order(self):
+        """默认不重排 —— 页面按金额排过序，导出必须和眼睛看到的一致。"""
+        entries = [
+            make_entry(id="a", date="2026-11-01", note="最早的一天"),
+            make_entry(id="b", date="2026-11-05", note="最晚的一天"),
+            make_entry(id="c", date="2026-11-03", note="中间"),
+        ]
+        rows = parse(csv_export.export_csv(entries, CATEGORIES))
+        self.assertEqual([r[4] for r in rows[1:]],
+                         ["最早的一天", "最晚的一天", "中间"])
+
+    def test_sort_true_reorders_by_date_desc(self):
+        """显式传 sort=True 时按日期倒序，用于标准化输出。"""
+        entries = [
+            make_entry(id="a", date="2026-11-01", note="最早的一天"),
+            make_entry(id="b", date="2026-11-05", note="最晚的一天"),
+            make_entry(id="c", date="2026-11-03", note="中间"),
+        ]
+        rows = parse(csv_export.export_csv(entries, CATEGORIES, sort=True))
+        self.assertEqual([r[4] for r in rows[1:]],
+                         ["最晚的一天", "中间", "最早的一天"])
 
     def test_empty_entries_keeps_header(self):
         """空结果也要能下载，至少给出表头。"""
@@ -105,17 +144,10 @@ class TestExportCsv(unittest.TestCase):
         self.assertEqual(rows[0], csv_export.HEADER)
 
     def test_none_entries(self):
+        """上游传 None（比如还没筛选过）不该崩，按空账本处理。"""
         rows = parse(csv_export.export_csv(None, None))
         self.assertEqual(rows[0], csv_export.HEADER)
-
-    def test_sort_disabled_keeps_input_order(self):
-        entries = [
-            make_entry(id="a", date="2026-11-01", note="先录入"),
-            make_entry(id="b", date="2026-11-05", note="后录入"),
-        ]
-        rows = parse(csv_export.export_csv(entries, CATEGORIES, sort=False))
-        self.assertEqual(rows[1][4], "先录入")
-        self.assertEqual(rows[2][4], "后录入")
+        self.assertEqual(len(rows), 1)
 
     def test_unknown_category_falls_back_to_id(self):
         entries = [make_entry(category_id="ghost")]
@@ -126,6 +158,51 @@ class TestExportCsv(unittest.TestCase):
         entries = [make_entry(category_id="")]
         rows = parse(csv_export.export_csv(entries, CATEGORIES))
         self.assertEqual(rows[1][2], csv_export.UNKNOWN_CATEGORY)
+
+    def test_note_can_be_none(self):
+        entries = [make_entry(note=None)]
+        rows = parse(csv_export.export_csv(entries, CATEGORIES))
+        self.assertEqual(rows[1][4], "")
+
+
+class TestValidation(unittest.TestCase):
+    """排序前就要把非法记录挡下来，报错信息要能指出是第几条。"""
+
+    def test_non_dict_entry(self):
+        with self.assertRaises(csv_export.ExportError) as ctx:
+            csv_export.export_csv(["这不是字典"], CATEGORIES)
+        self.assertIn("第 1 条记录", str(ctx.exception))
+
+    def test_bad_date_format(self):
+        for bad_date in ["2026/11/07", "2026-1-7", "20261107", ""]:
+            with self.subTest(date=bad_date):
+                with self.assertRaises(csv_export.ExportError):
+                    csv_export.export_csv([make_entry(date=bad_date)], CATEGORIES)
+
+    def test_impossible_date(self):
+        """格式对但日期不存在（2 月 30 号）也要拦下来。"""
+        with self.assertRaises(csv_export.ExportError):
+            csv_export.export_csv([make_entry(date="2026-02-30")], CATEGORIES)
+
+    def test_bad_type(self):
+        for bad_type in ["expense1", "", None, "支出", "INCOME"]:
+            with self.subTest(type=bad_type):
+                with self.assertRaises(csv_export.ExportError):
+                    csv_export.export_csv([make_entry(type=bad_type)], CATEGORIES)
+
+    def test_bad_amount_points_to_row(self):
+        """第 2 条记录的金额坏了，报错要指到第 2 条，不能只说金额错。"""
+        entries = [make_entry(id="ok"), make_entry(id="bad", amount_cents=None)]
+        with self.assertRaises(csv_export.ExportError) as ctx:
+            csv_export.export_csv(entries, CATEGORIES)
+        self.assertIn("第 2 条记录", str(ctx.exception))
+
+    def test_created_at_missing_is_tolerated(self):
+        """录入时间不参与业务，缺了也能导出。"""
+        entry = make_entry()
+        entry.pop("created_at")
+        rows = parse(csv_export.export_csv([entry], CATEGORIES))
+        self.assertEqual(len(rows), 2)
 
 
 class TestCsvSafety(unittest.TestCase):
@@ -148,8 +225,13 @@ class TestCsvSafety(unittest.TestCase):
         for note in dangerous:
             with self.subTest(note=note):
                 rows = parse(csv_export.export_csv([make_entry(note=note)], CATEGORIES))
-                self.assertTrue(rows[1][4].startswith("'"), "公式型备注未转义")
                 self.assertEqual(rows[1][4], "'" + note)
+
+    def test_formula_in_category_name_blocked(self):
+        """类别名也可能被改成危险内容，一样要挡。"""
+        cats = [{"id": "food", "name": "=HYPERLINK(\"http://evil\")"}]
+        rows = parse(csv_export.export_csv([make_entry()], cats))
+        self.assertTrue(rows[1][2].startswith("'"))
 
     def test_chinese_survives(self):
         entries = [make_entry(note="中文备注：早餐、地铁、工资")]

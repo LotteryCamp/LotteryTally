@@ -15,7 +15,9 @@ import csv
 from datetime import date
 import io
 import json
+from pathlib import Path
 import re
+import tempfile
 import unittest
 
 from lotterytally.stats import create_app
@@ -172,6 +174,28 @@ class StatsRoutesTests(unittest.TestCase):
         html = resp.get_data(as_text=True)
         self.assertIn("35.00", html)
         self.assertIn("夜宵（已停用）", html)
+
+    def test_reads_ledger_data_path_from_app_config(self):
+        """验证与 app.py 的 LEDGER_DATA_PATH 配置项无缝对接。"""
+        ledger_payload = {
+            "schema_version": 1,
+            "categories": list(SAMPLE_CATEGORIES),
+            "entries": [
+                make_entry("demo-1", "2026-11-07", "expense", 8800, "food", "演示账本聚餐"),
+            ],
+            "budgets": {},
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ledger_file = Path(tmp_dir) / "demo_ledger.json"
+            ledger_file.write_text(json.dumps(ledger_payload, ensure_ascii=False), encoding="utf-8")
+            app = create_app(today=TODAY)
+            app.config["TESTING"] = True
+            app.config["LEDGER_DATA_PATH"] = str(ledger_file)
+            client = app.test_client()
+
+            resp = client.get("/stats")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("88.00", resp.get_data(as_text=True))
 
 
 if __name__ == "__main__":

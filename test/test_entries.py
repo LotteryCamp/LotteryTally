@@ -34,7 +34,20 @@ class CreateEntryTests(LedgerTestCase):
                 self.assertEqual(created["amount_cents"], expected)
 
     def test_rejects_invalid_amounts_and_writes_nothing(self):
-        for text in ("0", "0.00", "-1", "-0.5", "12.345", "1e3", "45.", ".5", "abc", "", "   "):
+        for text in (
+            "0",
+            "0.00",
+            "-1",
+            "-0.5",
+            "12.345",
+            "1e3",
+            "45.",
+            ".5",
+            "abc",
+            "",
+            "   ",
+            "1000000000000",
+        ):
             with self.subTest(text=text):
                 with self.assertRaises(entry_service.EntryValidationError) as ctx:
                     self.add_entry(amount=text)

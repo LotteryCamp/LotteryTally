@@ -77,7 +77,7 @@
                placeholder="例如 45 或 45.50" inputmode="decimal"
                class="{% if errors.amount %}invalid{% endif %}">
         {% if errors.amount %}<div class="pl-field-error">{{ errors.amount }}</div>{% endif %}
-        <div class="pl-hint">只填正数，最多两位小数。</div>
+        <div class="pl-hint">只填正数，最多两位小数，单笔最高 999,999,999,999.99 元。</div>
       </div>
 
       <div class="pl-field">

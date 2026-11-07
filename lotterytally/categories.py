@@ -144,17 +144,8 @@ def _data_file():
 
 def _render_categories(errors=None, form=None, editing_id=None):
     ledger = storage.load_ledger(data_file=_data_file())
-    # 公共布局需要页面传入导航，只展示当前应用实际注册的入口。
-    paths = {rule.rule for rule in current_app.url_map.iter_rules()}
-    navigation = [
-        {"label": label, "path": path}
-        for label, path in (
-            ("首页", "/"), ("记一笔", "/entries/new"),
-            ("流水", "/entries"), ("统计", "/stats"),
-            ("预算", "/budget"), ("类别", "/categories"),
-            ("备份", "/backup"),
-        ) if path == "/" or path in paths
-    ]
+    from lotterytally.navigation import navigation_items
+
     return render_template(
         "categories.html",
         categories=list_categories(ledger),
@@ -162,7 +153,7 @@ def _render_categories(errors=None, form=None, editing_id=None):
         form=form or {},
         editing_id=editing_id,
         name_max_length=CATEGORY_NAME_MAX_LENGTH,
-        navigation=navigation,
+        navigation=navigation_items(),
     )
 
 
@@ -224,7 +215,6 @@ def _render_storage_error():
     return render_template(
         "base.html", page_title="账本暂时无法保存",
         content_message="请检查账本文件和目录权限后重试。",
-        navigation=[{"label": "首页", "path": "/"}],
     ), 503
 
 
@@ -234,5 +224,4 @@ def handle_storage_error(error):
     return render_template(
         "base.html", page_title="账本暂时无法读取",
         content_message="请检查账本文件，必要时使用有效备份恢复。",
-        navigation=[{"label": "首页", "path": "/"}],
     ), 503

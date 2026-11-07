@@ -1,6 +1,7 @@
 """Smoke tests for the local web application shell."""
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,6 +31,24 @@ class AppShellTests(unittest.TestCase):
 
         for phrase in ("AI", "开发中", "骨架", "模块仍在集成"):
             self.assertNotIn(phrase.encode(), response.data)
+
+    def test_all_pages_render_the_same_top_navigation(self):
+        paths = ("/", "/entries/new", "/entries", "/stats", "/budget", "/categories", "/backup")
+        rendered_links = []
+        for path in paths:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                match = re.search(rb'<nav class="main-nav"[^>]*>(.*?)</nav>', response.data, re.S)
+                self.assertIsNotNone(match)
+                links = re.findall(rb'<a href="([^"]+)"[^>]*>([^<]+)</a>', match.group(1))
+                rendered_links.append([(href.decode(), label.decode().strip()) for href, label in links])
+
+        self.assertTrue(all(links == rendered_links[0] for links in rendered_links[1:]))
+        self.assertEqual(
+            [href for href, _label in rendered_links[0]],
+            ["/", "/entries/new", "/entries", "/stats", "/budget", "/categories", "/backup"],
+        )
 
     def test_static_stylesheet_is_served(self):
         response = self.client.get("/static/css/app.css")

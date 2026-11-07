@@ -117,16 +117,6 @@ DEFAULT_CATEGORIES: list[dict[str, Any]] = [
     {"id": "other_income", "name": "其他", "type": "income", "active": True},
 ]
 
-_NAV_ITEMS = (
-    ("首页", "/"),
-    ("记一笔", "/entries/new"),
-    ("流水", "/entries"),
-    ("统计", "/stats"),
-    ("预算", "/budget"),
-    ("类别", "/categories"),
-    ("备份", "/backup"),
-)
-
 stats_bp = Blueprint("stats", __name__, template_folder="templates")
 
 
@@ -141,13 +131,9 @@ def _resolve_today() -> date:
 
 
 def _build_navigation() -> list[dict[str, str]]:
-    """构建与 app.py / base.html 兼容的顶部导航栏链接列表（仅包含已注册路由）。"""
-    existing_paths = {rule.rule for rule in current_app.url_map.iter_rules()}
-    return [
-        {"label": label, "path": path}
-        for label, path in _NAV_ITEMS
-        if path in existing_paths
-    ]
+    from lotterytally.navigation import navigation_items
+
+    return navigation_items()
 
 
 def _load_ledger_snapshot() -> dict[str, Any]:
@@ -423,15 +409,9 @@ _FALLBACK_BASE_HTML = """<!DOCTYPE html>
   <title>{% block title %}PocketLedger 口袋账本{% endblock %}</title>
 </head>
 <body>
-  <nav style="background:#1e293b;color:#fff;padding:12px 24px;display:flex;gap:20px;align-items:center;">
-    <strong style="font-size:18px;">PocketLedger 口袋账本</strong>
-    <a href="/" style="color:#e2e8f0;text-decoration:none;">首页</a>
-    <a href="/entries/new" style="color:#e2e8f0;text-decoration:none;">记一笔</a>
-    <a href="/entries" style="color:#e2e8f0;text-decoration:none;">流水查询</a>
-    <a href="/stats" style="color:#38bdf8;text-decoration:none;font-weight:bold;">收支统计</a>
-    <a href="/budget" style="color:#e2e8f0;text-decoration:none;">预算管理</a>
-    <a href="/categories" style="color:#e2e8f0;text-decoration:none;">类别管理</a>
-    <a href="/backup" style="color:#e2e8f0;text-decoration:none;">备份恢复</a>
+  <nav aria-label="主导航">
+    <strong>PocketLedger 口袋账本</strong>
+    {% for item in navigation %}<a href="{{ item.path }}">{{ item.label }}</a>{% endfor %}
   </nav>
   <main style="max-width:1100px;margin:24px auto;padding:0 16px;">
     {% block content %}{% endblock %}

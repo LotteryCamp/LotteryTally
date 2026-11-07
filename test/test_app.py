@@ -40,6 +40,7 @@ class AppShellTests(unittest.TestCase):
 
     def test_homepage_reads_the_configured_ledger_when_storage_module_is_absent(self):
         ledger = {
+            "schema_version": 1,
             "categories": [{"id": "food", "name": "饮食", "type": "expense"}],
             "entries": [
                 {

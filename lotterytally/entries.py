@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from lotterytally import models, storage, validators
+from lotterytally import models
 
 __all__ = [
     "EntryError",
@@ -32,6 +32,20 @@ __all__ = [
     "list_entries",
     "recent_entries",
 ]
+
+# 队友模块延迟导入：缺失时应用仍能启动，真正调用账目服务时才报错。
+
+
+def _storage():
+    from lotterytally import storage
+
+    return storage
+
+
+def _validators():
+    from lotterytally import validators
+
+    return validators
 
 
 class EntryError(Exception):
@@ -77,7 +91,7 @@ def create_entry(form_data):
         _check_category(ledger, fields["type"], fields["category_id"], allow_inactive=False)
         ledger.setdefault("entries", []).append(dict(entry))
 
-    storage.update_ledger(change)
+    _storage().update_ledger(change)
     return dict(entry)
 
 
@@ -107,7 +121,7 @@ def update_entry(entry_id, form_data):
         snapshot.clear()
         snapshot.update(entry)
 
-    storage.update_ledger(change)
+    _storage().update_ledger(change)
     return dict(snapshot)
 
 
@@ -125,7 +139,7 @@ def delete_entry(entry_id):
             if item.get("id") != entry_id
         ]
 
-    storage.update_ledger(change)
+    _storage().update_ledger(change)
     return dict(removed)
 
 
@@ -134,13 +148,13 @@ def delete_entry(entry_id):
 
 def get_entry(entry_id, ledger=None):
     """按 ID 取账目；不存在返回 None。"""
-    ledger = storage.load_ledger() if ledger is None else ledger
+    ledger = _storage().load_ledger() if ledger is None else ledger
     return models.find_entry(ledger, entry_id)
 
 
 def list_entries(ledger=None, newest_first=True):
     """全部账目（默认按最近记录口径倒序）。"""
-    ledger = storage.load_ledger() if ledger is None else ledger
+    ledger = _storage().load_ledger() if ledger is None else ledger
     entries = [entry for entry in ledger.get("entries") or [] if isinstance(entry, dict)]
     return models.sort_entries_newest_first(entries) if newest_first else entries
 
@@ -154,6 +168,7 @@ def recent_entries(limit=10, ledger=None):
 
 
 def _validated_fields(form_data):
+    validators = _validators()
     try:
         return validators.validate_entry_fields(form_data)
     except validators.ValidationError as exc:

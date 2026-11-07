@@ -1,7 +1,8 @@
 """预算规则与预算页（/budget，GET + POST）。
 
 负责人：佘博海 102401137
-交付文件：lotterytally/budget.py、templates/budget.html
+交付文件：lotterytally/budget.py、lotterytally/templates/budget.html、
+         lotterytally/static/css/budget.css
 
 口径（实施方案 4.3 节）
 ----------------------
@@ -12,17 +13,22 @@
    已用 > 上限 → 超支。进度条宽度封顶 100%，但旁边金额和百分比照实显示。
 
 对外接口：``budget_status(ledger, month)``（实施方案 5.2 节锁定）。
+蓝图：``budget_bp``（应用入口 ``app.py`` 通过它注册路由）。
 页面路由：GET /budget 查看，POST /budget 保存选定月份的总预算与分类预算。
-接入方式：应用入口注册 ``budget.bp``，模板目录指向仓库根的 ``templates/``。
+
+依赖 ``lotterytally.storage`` 与 ``lotterytally.validators``，两者由队友模块提供。
+为配合应用入口“模块缺失时跳过”的策略，这里在函数内部延迟导入：
+队友模块尚未合入时，应用仍能启动，只有访问预算页时才会报错。
 """
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 
-from lotterytally import models, storage, validators
+from lotterytally import models
 
 __all__ = [
+    "budget_bp",
     "bp",
     "BudgetError",
     "budget_status",
@@ -30,7 +36,9 @@ __all__ = [
     "save_budget",
 ]
 
-bp = Blueprint("budget", __name__)
+#: 应用入口 app.py 按 ``budget_bp`` 这个名字注册蓝图；bp 保留为同义别名。
+budget_bp = Blueprint("budget", __name__, template_folder="templates")
+bp = budget_bp
 
 STATUS_UNSET = "unset"
 STATUS_OK = "ok"
@@ -47,6 +55,35 @@ class BudgetError(Exception):
     def __init__(self, errors):
         self.errors = dict(errors)
         super().__init__("；".join(self.errors.values()))
+
+
+# ---------------------------------------------------------------- 依赖
+
+# 队友模块延迟导入：缺失时应用仍能启动，访问预算页才报错（配合 app.py 的跳过策略）。
+
+
+def _storage():
+    from lotterytally import storage
+
+    return storage
+
+
+def _validators():
+    from lotterytally import validators
+
+    return validators
+
+
+def _load_ledger():
+    """读取账本快照。
+
+    优先使用应用注入的 ``LEDGER_LOADER``（与统计模块 statistics 使用同一个配置键），
+    否则调用 storage 模块在实施方案 5.2 中锁定的 ``load_ledger()``。
+    """
+    loader = current_app.config.get("LEDGER_LOADER")
+    if callable(loader):
+        return loader()
+    return _storage().load_ledger()
 
 
 # ---------------------------------------------------------------- 计算
@@ -247,7 +284,7 @@ def save_budget(month, total_cents, category_limits):
         snapshot.clear()
         snapshot.update(budget_status(ledger, month))
 
-    storage.update_ledger(change)
+    _storage().update_ledger(change)
     return dict(snapshot)
 
 
@@ -255,6 +292,7 @@ def _parse_limit(text, field, errors):
     raw = "" if text is None else str(text).strip()
     if not raw:
         return None
+    validators = _validators()
     try:
         return validators.parse_amount_cents(raw, field=field)
     except validators.ValidationError as exc:
@@ -278,13 +316,13 @@ def budget_page():
     warning = None
     if raw_month and models.parse_month(raw_month) is None:
         warning = "月份格式应为 YYYY-MM，已显示本月预算。"
-    ledger = storage.load_ledger()
+    ledger = _load_ledger()
     return _render(ledger, month, warning=warning)
 
 
 @bp.post("/budget")
 def save_budget_page():
-    ledger = storage.load_ledger()
+    ledger = _load_ledger()
     try:
         month, total_cents, category_limits = parse_budget_form(request.form, ledger)
     except BudgetError as exc:

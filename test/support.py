@@ -46,8 +46,9 @@ DEFAULT_CATEGORIES = [
 
 #: 预算页渲染测试用的最小父模板；真实 base.html 由布局模块提供。
 BASE_TEMPLATE_STUB = (
-    "<!doctype html><html><head><title>{% block title %}{% endblock %}</title></head>"
-    "<body>{% block content %}{% endblock %}</body></html>"
+    "<!doctype html><html><head><title>{% block title %}{% endblock %}</title>"
+    "{% block head %}{% endblock %}</head>"
+    "<body>{% block content %}{% endblock %}{% block scripts %}{% endblock %}</body></html>"
 )
 
 
@@ -231,9 +232,14 @@ class LedgerTestCase(unittest.TestCase):
 
         from lotterytally import budget as budget_module
 
-        app = Flask(__name__, template_folder=str(REPO_ROOT / "templates"))
+        package_dir = REPO_ROOT / "lotterytally"
+        app = Flask(
+            __name__,
+            template_folder=str(package_dir / "templates"),
+            static_folder=str(package_dir / "static"),
+        )
         app.secret_key = "test-only"
-        app.register_blueprint(budget_module.bp)
+        app.register_blueprint(budget_module.budget_bp)
         app.jinja_loader = ChoiceLoader(
             [DictLoader({"base.html": BASE_TEMPLATE_STUB}), app.jinja_loader]
         )

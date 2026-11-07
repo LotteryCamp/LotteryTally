@@ -2,7 +2,7 @@
 
 负责人：佘博海 102401137
 
-交付文件：`lotterytally/models.py`、`lotterytally/entries.py`、`lotterytally/budget.py`、`templates/budget.html`
+交付文件：`lotterytally/models.py`、`lotterytally/entries.py`、`lotterytally/budget.py`、`lotterytally/templates/budget.html`、`lotterytally/static/css/budget.css`
 
 本文说明三个模块的接口、预算口径、页面接入方式和自测结果，供应用入口（`app.py`）与其他模块联调时对照。
 
@@ -81,7 +81,7 @@
 | `budget_status(ledger, month)` | 返回该月总预算与分类预算的上限、已用、剩余、超支、状态与百分比 |
 | `parse_budget_form(form_data, ledger)` | 校验预算表单，返回 `(month, total_cents, {category_id: cents})`；空字符串表示清除该项 |
 | `save_budget(month, total_cents, category_limits)` | 写入预算并返回保存后的 `budget_status` |
-| `bp` | Flask 蓝图，提供 `GET /budget` 与 `POST /budget` |
+| `budget_bp` | Flask 蓝图，提供 `GET /budget` 与 `POST /budget`（`bp` 保留为同义别名） |
 
 `budget_status()` 返回结构：
 
@@ -114,20 +114,28 @@
 
 ## 四、页面接入
 
-应用入口（魏之皓的 `app.py`）需要：
+应用入口（魏之皓的 `app.py`）已经预留了注册位：`BLUEPRINTS` 里写的是
 
 ```python
-from flask import Flask
-from lotterytally.budget import bp as budget_bp
-
-app = Flask(__name__, template_folder="templates")   # 仓库根的 templates/
-app.secret_key = "..."                                # flash 需要
-app.register_blueprint(budget_bp)
+("lotterytally.budget", "budget_bp")
 ```
 
-- 模板 `templates/budget.html` 继承 `base.html`，依赖 `{% block title %}` 与 `{% block content %}` 两个块。
+因此本模块对外暴露的蓝图名为 `budget_bp`，模板与样式随 `lotterytally` 包分发：
+
+```text
+lotterytally/
+├── budget.py
+├── templates/budget.html      # 蓝图声明了 template_folder="templates"
+└── static/css/budget.css      # 预算页专用样式，由模板 {% block head %} 引入
+```
+
+- 模板继承 `base.html`，依赖 `{% block title %}`、`{% block content %}`、`{% block head %}`；
+  `base.html` 不渲染 flash 消息，所以预算模板自己渲染保存成功/失败的提示，不要求布局模块改动。
 - 蓝图注册时会向应用注册 `yuan` 模板过滤器（整数分 → 两位小数元），预算页用它显示金额。
 - `GET /budget?month=YYYY-MM` 查看，`POST /budget` 保存；保存成功重定向，校验失败返回 400 并保留输入。
+- 依赖延迟导入：`lotterytally.storage`、`lotterytally.validators` 尚未合入时，应用仍能正常启动，
+  只有访问预算页或调用账目服务时才提示缺模块，不会让 `app.py` 在导入阶段崩溃。
+- 读账本走 `LEDGER_LOADER` 注入（与统计模块同一个配置键），未注入时调用 `storage.load_ledger()`。
 
 ## 五、自测
 
@@ -161,9 +169,13 @@ python -m venv .venv
 
 | 依赖 | 状态 | 联调方式 |
 | --- | --- | --- |
-| `lotterytally/storage.py`（李义东） | 未合入 | 合入后跑一遍真实落盘：新增 → 重启 → 记录仍在 |
+| `lotterytally/storage.py`（李义东） | 未合入 | 合入后跑一遍真实落盘：新增 → 重启 → 记录仍在；确认 `load_ledger()` 无参调用可用（实施方案 5.2 的锁定接口） |
 | `lotterytally/validators.py`（何慧渊） | 未合入 | 合入后替换测试替身，确认金额错误提示一致 |
 | `categories.py`（刘谦益） | 未合入 | 默认类别 ID 需与 `test/support.py` 的夹具一致（salary / food 等） |
-| `app.py`、`base.html`（魏之皓） | 未合入 | 按第四节的注册方式接入，打开 `/budget` 核对演示数字 |
+| `app.py`、`base.html`（魏之皓） | 分支已推送 | 已按第四节对齐：`budget_bp`、包内模板、`{% block head %}`；待其合入后打开 `/budget` 核对演示数字 |
 
 已知限制：本模块不负责 `app.py` 启动参数、数据文件路径与备份；`budget.py` 的页面依赖 Flask，纯计算函数（`budget_status`）不依赖 Web 上下文，便于独立测试。
+
+> 联调记录（本地）：把 `feature/app-shell` 与本站分支合并、用临时存储/校验占位启动应用后，
+> `/budget` 可以正常渲染，`剩余 30.00 元`、`超支 15.00 元` 等状态与统计口径一致；
+> 临时占位未提交。

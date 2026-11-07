@@ -1,0 +1,227 @@
+/* 预算页样式：复用 app.css 的配色变量，所有选择器限定在 .budget-page 内，避免影响其他页面。 */
+
+.budget-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.budget-page .is-muted { color: var(--muted); }
+
+/* ---------- 提示 ---------- */
+.budget-flash-stack { display: flex; flex-direction: column; gap: 8px; }
+.budget-flash {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 14px;
+}
+.budget-flash-success { border-color: #cfe3d9; background: var(--green-soft); color: var(--green-dark); }
+.budget-flash-error { border-color: #ecd2ce; background: #fbf0ee; color: #8f443b; }
+.budget-flash-info { border-color: #d7e2ea; background: var(--blue-soft); color: #3f5b70; }
+
+/* ---------- 页头 ---------- */
+.budget-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.budget-head h1 { margin: 7px 0 6px; font-size: 31px; line-height: 1.35; font-weight: 700; }
+.budget-sub { margin: 0; max-width: 560px; color: var(--muted); font-size: 14px; }
+
+.budget-month-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.budget-month-pill {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--green-dark);
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- 月份栏 ---------- */
+.budget-monthbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.budget-monthform { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.budget-monthform label { color: var(--muted); font-size: 13px; }
+.budget-quick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.budget-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1f5f4;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.budget-chip:hover { background: var(--green-soft); color: var(--green-dark); }
+
+/* ---------- 概览面板 ---------- */
+.budget-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.budget-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.budget-panel::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: #d8e3de;
+  content: "";
+}
+.budget-panel-total::before { background: var(--green); }
+.budget-panel-title { margin: 0 0 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.budget-big {
+  margin: 4px 0 4px;
+  color: var(--ink);
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.budget-unit { margin-left: 3px; color: var(--muted); font-size: 13px; font-weight: 500; }
+.budget-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.budget-foot { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+
+/* ---------- 进度条与状态 ---------- */
+.budget-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #edf2f0;
+  overflow: hidden;
+}
+.budget-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--green); }
+.budget-bar-ok > span { background: linear-gradient(90deg, #3f9b7c, var(--green)); }
+.budget-bar-exhausted > span { background: linear-gradient(90deg, #d9b061, #a97c25); }
+.budget-bar-over > span { background: linear-gradient(90deg, #d98a80, var(--red)); }
+.budget-percent {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-badge {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.budget-badge-ok { background: var(--green-soft); color: var(--green-dark); }
+.budget-badge-exhausted { background: #f7efdc; color: #93681f; }
+.budget-badge-over { background: #f9ebe8; color: #a94f43; }
+.budget-badge-unset { background: #eef2f1; color: var(--muted); }
+
+/* ---------- 表单 ---------- */
+.budget-form { display: flex; flex-direction: column; gap: 16px; margin: 0; }
+.budget-card {
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.budget-card-head { margin-bottom: 14px; }
+.budget-card-head h2 { margin: 0 0 4px; font-size: 16px; font-weight: 700; }
+.budget-card-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.budget-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+.budget-field { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.budget-field label { min-width: 96px; color: var(--muted); font-size: 14px; }
+
+.budget-input {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+.budget-input:focus {
+  outline: 2px solid rgba(36, 116, 94, .28);
+  outline-offset: 1px;
+  border-color: var(--green);
+}
+.budget-input-wide { width: 220px; }
+.budget-input-sm { width: 118px; min-height: 32px; padding: 4px 8px; text-align: right; }
+
+.budget-field-error { margin: 6px 0 0; color: var(--red); font-size: 12.5px; }
+
+/* ---------- 表格 ---------- */
+.budget-table th, .budget-table td { vertical-align: middle; }
+.budget-table .amount-column { text-align: right; font-variant-numeric: tabular-nums; }
+.budget-table td.amount-column { white-space: nowrap; }
+.budget-progress-col { width: 180px; min-width: 140px; }
+.budget-row-muted td { color: var(--muted); }
+.budget-table .budget-badge { margin-left: 6px; }
+
+/* ---------- 空状态与说明 ---------- */
+.budget-hint {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px dashed #cfdcd6;
+  border-radius: 10px;
+  background: #f9fbfa;
+  color: var(--muted);
+  font-size: 14px;
+}
+.budget-note {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.budget-note h2 { margin: 0 0 6px; color: var(--muted); font-size: 14px; font-weight: 600; }
+.budget-note ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; }
+.budget-note li { margin: 2px 0; }
+.budget-note strong { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 860px) {
+  .budget-summary { grid-template-columns: 1fr; }
+  .budget-head { align-items: flex-start; }
+}

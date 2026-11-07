@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - PocketLedger 口袋账本{% endblock %}
+
+{% block content %}
+<style>
+  .pl-entry-wrap { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color: #1e293b; }
+  .pl-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 22px 24px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(15,23,42,0.04); }
+  .pl-entry-title { margin: 0 0 18px 0; font-size: 20px; font-weight: 600; color: #0f172a; }
+  .pl-error-banner { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+  .pl-field { margin-bottom: 16px; }
+  .pl-field > label { display: block; font-size: 14px; font-weight: 500; color: #475569; margin-bottom: 6px; }
+  .pl-field input[type="text"], .pl-field input[type="date"], .pl-field select, .pl-field textarea {
+    width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: #fff; font-family: inherit;
+  }
+  .pl-field input.invalid, .pl-field select.invalid, .pl-field textarea.invalid { border-color: #dc2626; background: #fef2f2; }
+  .pl-field-error { color: #dc2626; font-size: 12px; margin-top: 4px; }
+  .pl-type-group { display: flex; gap: 16px; }
+  .pl-type-group label { display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 8px; }
+  .pl-type-group input { accent-color: #2563eb; }
+  .pl-type-group label.selected-income { border-color: #16a34a; background: #f0fdf4; }
+  .pl-type-group label.selected-expense { border-color: #dc2626; background: #fef2f2; }
+  .pl-hint { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .pl-actions { display: flex; gap: 12px; margin-top: 22px; align-items: center; }
+  .pl-btn { display: inline-block; padding: 9px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+  .pl-btn-primary { background: #2563eb; color: #fff; }
+  .pl-btn-primary:hover { background: #1d4ed8; }
+  .pl-btn-ghost { background: #fff; color: #475569; border-color: #cbd5e1; }
+  .pl-btn-danger { background: #fff; color: #dc2626; border-color: #fca5a5; }
+  .pl-btn-danger:hover { background: #fef2f2; }
+  .pl-notfound { background: #fef9c3; border: 1px solid #fde047; color: #854d0e; padding: 20px; border-radius: 8px; text-align: center; }
+</style>
+
+<div class="pl-entry-wrap">
+  <div class="pl-card">
+    <h1 class="pl-entry-title">{{ title }}</h1>
+
+    {% if not_found %}
+      <div class="pl-notfound">
+        <p>找不到这笔账，它可能已被删除。</p>
+        <a class="pl-btn pl-btn-primary" href="/entries">返回流水页</a>
+      </div>
+    {% else %}
+
+    {% if errors %}
+    <div class="pl-error-banner">
+      有内容填写不正确，请按字段旁的提示修改。
+    </div>
+    {% endif %}
+
+    <form method="post"
+          action="{% if mode == 'edit' %}{{ url_for('entry.edit_entry', entry_id=entry.id) }}{% else %}{{ url_for('entry.new_entry') }}{% endif %}"
+          id="entry-form">
+      <div class="pl-field">
+        <label>收支类型</label>
+        <div class="pl-type-group">
+          <label class="selected-expense">
+            <input type="radio" name="type" value="expense" {% if form.type != 'income' %}checked{% endif %}> 支出
+          </label>
+          <label class="selected-income">
+            <input type="radio" name="type" value="income" {% if form.type == 'income' %}checked{% endif %}> 收入
+          </label>
+        </div>
+        {% if errors.type %}<div class="pl-field-error">{{ errors.type }}</div>{% endif %}
+      </div>
+
+      <div class="pl-field">
+        <label for="date">日期</label>
+        <input type="date" id="date" name="date" value="{{ form.date or today }}"
+               class="{% if errors.date %}invalid{% endif %}">
+        {% if errors.date %}<div class="pl-field-error">{{ errors.date }}</div>{% endif %}
+      </div>
+
+      <div class="pl-field">
+        <label for="amount">金额（元）</label>
+        <input type="text" id="amount" name="amount" value="{{ form.amount }}"
+               placeholder="例如 45 或 45.50" inputmode="decimal"
+               class="{% if errors.amount %}invalid{% endif %}">
+        {% if errors.amount %}<div class="pl-field-error">{{ errors.amount }}</div>{% endif %}
+        <div class="pl-hint">只填正数，最多两位小数。</div>
+      </div>
+
+      <div class="pl-field">
+        <label for="category_id">类别</label>
+        <select id="category_id" name="category_id" class="{% if errors.category_id %}invalid{% endif %}">
+          <option value="">请选择类别</option>
+          {% for cat in active_categories %}
+          <option value="{{ cat.id }}" {% if form.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+          {# 编辑时保留已停用的原类别，避免下拉框里凭空消失 #}
+          {% if mode == 'edit' and entry and form.category_id and form.category_id not in (active_categories | map(attribute='id') | list) %}
+          <option value="{{ form.category_id }}" selected>{{ entry.category_name }}（已停用）</option>
+          {% endif %}
+        </select>
+        {% if errors.category_id %}<div class="pl-field-error">{{ errors.category_id }}</div>{% endif %}
+      </div>
+
+      <div class="pl-field">
+        <label for="note">备注</label>
+        <textarea id="note" name="note" rows="3" maxlength="200"
+                  class="{% if errors.note %}invalid{% endif %}">{{ form.note }}</textarea>
+        {% if errors.note %}<div class="pl-field-error">{{ errors.note }}</div>{% endif %}
+      </div>
+
+      <div class="pl-actions">
+        <button type="submit" class="pl-btn pl-btn-primary">保存</button>
+        <a href="/entries" class="pl-btn pl-btn-ghost">取消</a>
+      </div>
+    </form>
+
+    {% if mode == 'edit' and entry %}
+    <form method="post" action="{{ url_for('entry.delete_entry', entry_id=entry.id) }}"
+          data-delete-entry
+          data-date="{{ entry.date }}"
+          data-category="{{ entry.category_name }}"
+          data-amount="{{ entry.amount_yuan }}"
+          style="margin-top:8px; border-top:1px solid #e2e8f0; padding-top:18px;">
+      <button type="submit" class="pl-btn pl-btn-danger">删除这笔账</button>
+    </form>
+    {% endif %}
+
+    {% endif %}
+  </div>
+</div>
+
+{# 类别数据交给 entry.js 做收支类型联动；模板把完整类别表（含类型与停用状态）以 JSON 注入 #}
+<script id="entry-categories" type="application/json">{{ categories | tojson }}</script>
+<script src="{{ url_for('static', filename='js/entry.js') }}"></script>
+{% endblock %}

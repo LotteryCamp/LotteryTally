@@ -110,6 +110,25 @@ class TestCategories(unittest.TestCase):
             list_categories(self.ledger, "invalid")
         self.assertEqual(self.ledger, before)
 
+    def test_name_length_boundary_after_trimming(self):
+        name = "类" * 20
+        category = create_category(self.ledger, " " + name + " ", "expense")
+        self.assertEqual(category["name"], name)
+        renamed = rename_category(self.ledger, "food", " " + "名" * 20 + " ")
+        self.assertEqual(renamed["name"], "名" * 20)
+
+    def test_overlong_names_do_not_change_ledger(self):
+        for operation in (
+            lambda: create_category(self.ledger, "类" * 21, "expense"),
+            lambda: rename_category(self.ledger, "food", "名" * 21),
+        ):
+            with self.subTest(operation=operation):
+                before = copy.deepcopy(self.ledger)
+                with self.assertRaises(CategoryError) as error:
+                    operation()
+                self.assertEqual(error.exception.field, "name")
+                self.assertEqual(self.ledger, before)
+
     def test_rename_preserves_identity_and_references(self):
         entries = copy.deepcopy(self.ledger["entries"])
         budgets = copy.deepcopy(self.ledger["budgets"])

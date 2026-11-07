@@ -1,0 +1,14 @@
+<section aria-labelledby="expense-chart-title">
+  <h2 id="expense-chart-title">分类支出</h2>
+  <div id="expense-chart"></div>
+</section>
+
+<section aria-labelledby="daily-chart-title">
+  <h2 id="daily-chart-title">每日收支趋势</h2>
+  <div id="daily-chart"></div>
+</section>
+
+<script id="ledger-chart-data" type="application/json">
+  {{ chart_data | default({}) | tojson }}
+</script>
+<script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>

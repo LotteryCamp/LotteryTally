@@ -3,6 +3,7 @@
 模块：`lotterytally/csv_export.py`
 负责人：蔡信坡 162404103
 记录时间：2026-11-07 14:36
+Pull Request：[#3 feat(export): CSV 导出模块](https://github.com/LotteryCamp/LotteryTally/pull/3)
 
 ## 一、环境
 

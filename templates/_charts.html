@@ -11,3 +11,4 @@
 <script id="ledger-chart-data" type="application/json">
   {{ chart_data | default({}) | tojson }}
 </script>
+<script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>

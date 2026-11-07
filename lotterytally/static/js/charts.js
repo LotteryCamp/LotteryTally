@@ -140,23 +140,47 @@
     minimumFractionDigits: 2
   });
 
-  for (const { category_name, label, amount_cents } of expenses) {
-    const row = document.createElement("div");
-    row.style.marginBottom = "0.75rem";
+  const colors = ["#2563eb", "#0f766e", "#b45309", "#7e22ce", "#be185d", "#475569"];
+  const bar = document.createElement("div");
+  bar.style.display = "flex";
+  bar.style.height = "1.25rem";
+  bar.style.borderRadius = "0.375rem";
+  bar.style.overflow = "hidden";
+  bar.setAttribute("aria-hidden", "true");
 
+  const legend = document.createElement("ul");
+  legend.setAttribute("aria-label", "各类别支出金额与占比");
+  legend.style.display = "flex";
+  legend.style.flexWrap = "wrap";
+  legend.style.gap = "0.5rem 1.25rem";
+  legend.style.padding = "0";
+  legend.style.listStyle = "none";
+
+  expenses.forEach(({ category_name, label, amount_cents }, index) => {
     const share = amount_cents / totalAmount;
-    const caption = document.createElement("div");
+    const color = colors[index % colors.length];
+
+    const segment = document.createElement("div");
+    segment.style.flex = "0 0 " + share * 100 + "%";
+    segment.style.backgroundColor = color;
+    bar.append(segment);
+
+    const item = document.createElement("li");
+    const swatch = document.createElement("span");
+    swatch.style.display = "inline-block";
+    swatch.style.width = "0.75rem";
+    swatch.style.height = "0.75rem";
+    swatch.style.marginRight = "0.4rem";
+    swatch.style.borderRadius = "0.125rem";
+    swatch.style.backgroundColor = color;
+    swatch.setAttribute("aria-hidden", "true");
+
+    const caption = document.createElement("span");
     caption.textContent = (category_name ?? label ?? "未分类") + " " +
       currency.format(amount_cents / 100) + "（" + percent.format(share) + "）";
+    item.append(swatch, caption);
+    legend.append(item);
+  });
 
-    const bar = document.createElement("div");
-    bar.style.width = share * 100 + "%";
-    bar.style.height = "0.75rem";
-    bar.style.backgroundColor = "#2563eb";
-    bar.style.borderRadius = "0.25rem";
-    bar.setAttribute("aria-hidden", "true");
-
-    row.append(caption, bar);
-    container.append(row);
-  }
+  container.append(bar, legend);
 })();

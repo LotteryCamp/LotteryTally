@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import re
+import importlib.machinery
 import sys
 import types
 import unittest
@@ -69,19 +70,19 @@ class _MemoryStorage:
     def data_file(self):
         return REPO_ROOT / "data" / "ledger.json"
 
-    def load_ledger(self):
+    def load_ledger(self, path=None):
         if self._ledger is None:
             raise RuntimeError("测试替身里还没有账本，请先写入初始账本")
         return copy.deepcopy(self._ledger)
 
-    def update_ledger(self, change):
+    def update_ledger(self, change, path=None):
         working = copy.deepcopy(self.load_ledger())
         result = change(working)
         models.assert_valid_ledger(working)
         self._ledger = working
         return result
 
-    def write_ledger(self, ledger):
+    def write_ledger(self, ledger, path=None):
         models.assert_valid_ledger(ledger)
         self._ledger = copy.deepcopy(ledger)
         return ledger
@@ -172,13 +173,39 @@ def _validators_module():
 
 
 def _install(name, module):
+    """临时把替身装进 sys.modules，返回还原所需的信息。
+
+    只在本人的用例执行期间生效：队友的用例（例如 app-shell 用
+    ``importlib.util.find_spec("lotterytally.storage")`` 判断后端是否就绪）
+    不能在测试进程里看到这些替身，否则会被误判成“存储模块已经合入”。
+    """
+    package_attr = name.rsplit(".", 1)[1]
+    previous = (name, sys.modules.get(name), getattr(lotterytally, package_attr, None))
+    module.__spec__ = importlib.machinery.ModuleSpec(name, loader=None)
+    module.__loader__ = None
+    module.__package__ = name.rsplit(".", 1)[0]
     sys.modules[name] = module
-    setattr(lotterytally, name.rsplit(".", 1)[1], module)
-    return module
+    setattr(lotterytally, package_attr, module)
+    return previous
 
 
-storage = _install("lotterytally.storage", _storage_module())
-validators = _install("lotterytally.validators", _validators_module())
+def _uninstall(previous):
+    name, previous_module, previous_attr = previous
+    if previous_module is None:
+        sys.modules.pop(name, None)
+    else:
+        sys.modules[name] = previous_module
+
+    package_attr = name.rsplit(".", 1)[1]
+    if previous_attr is None:
+        if hasattr(lotterytally, package_attr):
+            delattr(lotterytally, package_attr)
+    else:
+        setattr(lotterytally, package_attr, previous_attr)
+
+
+storage = _storage_module()
+validators = _validators_module()
 
 
 # ---------------------------------------------------------------- 测试基类
@@ -188,7 +215,15 @@ class LedgerTestCase(unittest.TestCase):
     """每个用例一份只含默认类别、没有任何账目的内存账本。"""
 
     def setUp(self):
+        self._installed = [
+            _install("lotterytally.storage", storage),
+            _install("lotterytally.validators", validators),
+        ]
         storage.write_ledger(models.new_ledger(DEFAULT_CATEGORIES))
+
+    def tearDown(self):
+        for previous in reversed(self._installed):
+            _uninstall(previous)
 
     # ------------------------------------------------------------ 造数据
 

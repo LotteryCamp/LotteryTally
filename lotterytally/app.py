@@ -52,7 +52,11 @@ def _register_available_blueprints(app: Flask) -> None:
             LOGGER.warning("Skipping %s: module is not in the working tree yet", module_name)
             continue
         module = importlib.import_module(module_name)
-        app.register_blueprint(getattr(module, blueprint_name))
+        blueprint = getattr(module, blueprint_name, None)
+        if blueprint is None:
+            LOGGER.warning("Skipping %s: %s is not exported", module_name, blueprint_name)
+            continue
+        app.register_blueprint(blueprint)
 
 
 def _home_data(app: Flask) -> dict[str, Any]:

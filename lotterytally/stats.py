@@ -18,6 +18,7 @@ import csv
 import importlib
 import io
 import json
+import os
 import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal, localcontext
@@ -285,6 +286,16 @@ DEFAULT_CATEGORIES: list[dict[str, Any]] = [
     {"id": "other_income", "name": "其他", "type": "income", "active": True},
 ]
 
+_NAV_ITEMS = (
+    ("首页", "/"),
+    ("记一笔", "/entries/new"),
+    ("流水", "/entries"),
+    ("统计", "/stats"),
+    ("预算", "/budget"),
+    ("类别", "/categories"),
+    ("备份", "/backup"),
+)
+
 stats_bp = Blueprint("stats", __name__, template_folder="templates")
 
 
@@ -296,6 +307,16 @@ def _resolve_today() -> date:
     if isinstance(configured, str):
         return date.fromisoformat(configured)
     return datetime.now().astimezone().date()
+
+
+def _build_navigation() -> list[dict[str, str]]:
+    """构建与 app.py / base.html 兼容的顶部导航栏链接列表（仅包含已注册路由）。"""
+    existing_paths = {rule.rule for rule in current_app.url_map.iter_rules()}
+    return [
+        {"label": label, "path": path}
+        for label, path in _NAV_ITEMS
+        if path in existing_paths
+    ]
 
 
 def _load_ledger_snapshot() -> dict[str, Any]:
@@ -314,6 +335,7 @@ def _load_ledger_snapshot() -> dict[str, Any]:
         current_app.config.get("LEDGER_DATA_PATH")
         or current_app.config.get("DATA_FILE")
         or current_app.config.get("LEDGER_PATH")
+        or os.environ.get("LEDGER_DATA_PATH")
     )
 
     try:
@@ -327,7 +349,8 @@ def _load_ledger_snapshot() -> dict[str, Any]:
             loaded = load_fn(data_file) if data_file else load_fn()
             return _coerce_ledger_dict(loaded)
 
-    path = Path(data_file) if data_file else Path("data/ledger.json")
+    default_path = Path(__file__).resolve().parents[1] / "data" / "ledger.json"
+    path = Path(data_file) if data_file else default_path
     if path.is_file():
         raw = json.loads(path.read_text(encoding="utf-8"))
         return _coerce_ledger_dict(raw)
@@ -392,7 +415,11 @@ def _coerce_ledger_dict(raw: Any) -> dict[str, Any]:
 
             list_fn = getattr(cat_mod, "list_categories", None)
             if callable(list_fn):
-                categories = list_fn(raw)
+                categories = list_fn(raw, active_only=False)
+            if not categories:
+                default_fn = getattr(cat_mod, "get_default_categories", None)
+                if callable(default_fn):
+                    categories = default_fn()
         except Exception:
             categories = None
 
@@ -492,6 +519,7 @@ def stats_page() -> tuple[str, int] | str:
 
     html = render_template(
         "stats.html",
+        navigation=_build_navigation(),
         summary=summary_data,
         daily_totals=daily_data,
         daily_series=daily_data,

@@ -97,7 +97,29 @@
 
     const legend = document.createElement("p");
     legend.textContent = "绿色实线表示收入，橙色虚线表示支出。";
-    container.append(legend, svg);
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "查看每日收支明细";
+    const table = document.createElement("table");
+    const caption = table.createCaption();
+    caption.textContent = "每日收入与支出（元）";
+    const heading = table.createTHead().insertRow();
+    for (const label of ["日期", "收入", "支出"]) {
+      const cell = document.createElement("th");
+      cell.scope = "col";
+      cell.textContent = label;
+      heading.append(cell);
+    }
+
+    const body = table.createTBody();
+    for (const day of days) {
+      const row = body.insertRow();
+      row.insertCell().textContent = day.date;
+      row.insertCell().textContent = currency.format(day.income_cents / 100);
+      row.insertCell().textContent = currency.format(day.expense_cents / 100);
+    }
+    details.append(summary, table);
+    container.append(legend, svg, details);
   }
 
 
@@ -114,12 +136,12 @@
 
   const maxAmount = expenses[0].amount_cents;
 
-  for (const { label, amount_cents } of expenses) {
+  for (const { category_name, label, amount_cents } of expenses) {
     const row = document.createElement("div");
     row.style.marginBottom = "0.75rem";
 
     const caption = document.createElement("div");
-    caption.textContent = label + " " + currency.format(amount_cents / 100);
+    caption.textContent = (category_name ?? label ?? "未分类") + " " + currency.format(amount_cents / 100);
 
     const bar = document.createElement("div");
     bar.style.width = (amount_cents / maxAmount) * 100 + "%";

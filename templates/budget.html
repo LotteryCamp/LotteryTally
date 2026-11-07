@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}预算{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <h1>预算</h1>
+    <p class="muted">按账目日期归属月份统计，收入不计入支出预算；已用金额随账目自动重算。</p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn btn-ghost" href="{{ url_for('budget.budget_page', month=prev_month) }}">‹ 上月</a>
+    <a class="btn btn-ghost" href="{{ url_for('budget.budget_page', month=next_month) }}">下月 ›</a>
+  </div>
+</section>
+
+{% if warning %}<div class="flash flash-error">{{ warning }}</div>{% endif %}
+
+{% for message in general_errors %}
+  <div class="flash flash-error">{{ message }}</div>
+{% endfor %}
+
+<section class="card month-bar">
+  <form class="inline-form" method="get" action="{{ url_for('budget.budget_page') }}">
+    <label for="month">查看月份</label>
+    <input class="input" type="month" id="month" name="month" value="{{ month }}">
+    <button class="btn" type="submit">查看</button>
+    {% if month != current_month %}
+      <a class="btn btn-link" href="{{ url_for('budget.budget_page', month=current_month) }}">回到本月</a>
+    {% endif %}
+  </form>
+  {% if months %}
+    <div class="month-quick">
+      <span class="muted">账本里出现过的月份：</span>
+      {% for m in months if m != month %}
+        {% if loop.index <= 6 %}
+          <a class="chip" href="{{ url_for('budget.budget_page', month=m) }}">{{ m }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="stat-grid">
+  <article class="card stat-card">
+    <h2 class="stat-title">总预算</h2>
+    {% if status.total.has_limit %}
+      <p class="stat-value">{{ status.total.limit_text }}<span class="unit">元</span></p>
+      <p class="stat-sub">
+        已用 {{ status.total.used_text }} 元
+        <span class="badge badge-{{ status.total.status }}">{{ status.total.status_text }}</span>
+      </p>
+      <div class="bar bar-{{ status.total.status }}"><span style="width: {{ status.total.bar_percent }}%"></span></div>
+      <p class="stat-foot">{{ status.total.percent }}% 已使用</p>
+    {% else %}
+      <p class="stat-value muted">未设置</p>
+      <p class="stat-sub">本月已用 {{ status.total.used_text }} 元</p>
+      <p class="stat-foot">在下方填写总预算后保存</p>
+    {% endif %}
+  </article>
+
+  <article class="card stat-card">
+    <h2 class="stat-title">本月支出</h2>
+    <p class="stat-value">{{ status.expense_cents|yuan }}<span class="unit">元</span></p>
+    <p class="stat-sub">共 {{ status.expense_count }} 笔支出</p>
+    <p class="stat-foot">收入、其他月份账目不参与预算</p>
+  </article>
+
+  <article class="card stat-card">
+    <h2 class="stat-title">分类预算</h2>
+    <p class="stat-value">{{ status.budgeted_count }}<span class="unit">个已设</span></p>
+    <p class="stat-sub">
+      {% if status.unbudgeted_count %}
+        {{ status.unbudgeted_count }} 个分类有支出但未设预算，共 {{ status.unbudgeted_cents|yuan }} 元
+      {% else %}
+        有支出的分类都已设置预算
+      {% endif %}
+    </p>
+    <p class="stat-foot">分类预算之和不需要等于总预算</p>
+  </article>
+</section>
+
+<form method="post" action="{{ url_for('budget.save_budget_page') }}">
+  <input type="hidden" name="month" value="{{ month }}">
+  {% if form_errors.get('month') %}
+    <div class="flash flash-error">{{ form_errors.get('month') }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>总预算</h2>
+      <p class="muted">{{ month_label }}的整月支出上限。留空并保存表示取消总预算。</p>
+    </div>
+    <div class="field-row{% if form_errors.get('total') %} has-error{% endif %}">
+      <label for="total">每月上限（元）</label>
+      {% set submitted_total = form_values.get('total') if form_values else None %}
+      <input class="input input-md" type="text" inputmode="decimal" id="total" name="total"
+             value="{{ submitted_total if submitted_total is not none else (status.total.limit_text if status.total.has_limit else '') }}"
+             placeholder="例如 1500">
+      {% if form_errors.get('total') %}<p class="field-error">{{ form_errors.get('total') }}</p>{% endif %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>分类预算</h2>
+      <p class="muted">同一笔支出同时计入总预算和它所属分类的预算；留空表示该分类不设上限。</p>
+    </div>
+    <div class="table-wrap">
+      <table class="table budget-table">
+        <thead>
+          <tr>
+            <th scope="col">分类</th>
+            <th scope="col" class="num">预算上限（元）</th>
+            <th scope="col" class="num">本月已用</th>
+            <th scope="col">状态</th>
+            <th scope="col" class="progress-col">进度</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in status.categories %}
+            {% set submitted = form_values.get('limit_' ~ cat.category_id) if form_values else None %}
+            {% set value = submitted if submitted is not none else (cat.limit_text if cat.has_limit else '') %}
+            {% set field = 'limit_' ~ cat.category_id %}
+            <tr{% if not cat.active %} class="row-muted"{% endif %}>
+              <td>
+                <span class="cat-name">{{ cat.name }}</span>
+                {% if not cat.active %}<span class="badge badge-unset">已停用</span>{% endif %}
+              </td>
+              <td class="num">
+                <input class="input input-sm" type="text" inputmode="decimal" name="{{ field }}"
+                       value="{{ value }}" placeholder="不设"
+                       aria-label="{{ cat.name }}的预算上限">
+                {% if form_errors.get(field) %}<p class="field-error">{{ form_errors.get(field) }}</p>{% endif %}
+              </td>
+              <td class="num">{{ cat.used_text }}</td>
+              <td>
+                {% if cat.has_limit %}
+                  <span class="badge badge-{{ cat.status }}">{{ cat.status_text }}</span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td class="progress-col">
+                {% if cat.has_limit %}
+                  <div class="bar bar-{{ cat.status }}"><span style="width: {{ cat.bar_percent }}%"></span></div>
+                  <span class="pct">{{ cat.percent }}%</span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="muted">账本里还没有支出类别。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-foot form-actions">
+      <button class="btn btn-primary" type="submit">保存预算</button>
+      <span class="muted">留空并保存即清除该项预算。</span>
+    </div>
+  </section>
+</form>
+
+{% if status.expense_count == 0 %}
+  <p class="empty-hint">{{ month_label }}还没有支出记录。记一笔支出后，这里的已用金额和进度会自动更新。</p>
+{% endif %}
+
+<section class="card note-card">
+  <h2>口径说明</h2>
+  <ul>
+    <li>预算按<strong>账目日期</strong>归属月份：录入一笔上月支出，更新的是上月预算。</li>
+    <li>只有支出进入预算；收入不影响任何预算数字。</li>
+    <li>预算只保存上限，已用金额每次由账目实时汇总，所以修改、删除账目后无需再手动同步。</li>
+    <li>状态按整数分判断：已用小于上限显示剩余，等于上限显示用完，大于上限显示超支金额。</li>
+  </ul>
+</section>
+{% endblock %}

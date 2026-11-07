@@ -28,6 +28,9 @@ import re
 import shutil
 from datetime import datetime
 
+from flask import (Blueprint, Response, current_app, flash, redirect,
+                   render_template, request, url_for)
+
 from lotterytally import storage
 
 # 上传恢复的大小上限。方案 6.1 节建议课堂版 2 MB：
@@ -220,3 +223,63 @@ def restore_upload(payload, data_file=None, backup_dir=None):
         "categories": len(data.get("categories", [])),
         "pre_restore_backup": pre_restore_name,
     }
+
+
+# ---------------------------------------------------------------------------
+# 备份页面路由（方案 5.1 节：/backup 三个路由归存储负责人）
+# ---------------------------------------------------------------------------
+# 路由只做"取参数 → 调上面的纯函数 → 渲染/重定向"，校验和落盘规则
+# 全部在 restore_upload / build_download_payload 里，便于脱离 Flask 测试。
+
+backup_bp = Blueprint("backup", __name__, template_folder="templates")
+
+
+def _configured_data_file():
+    """取应用配置的数据文件路径；测试或脱离 app 运行时回退到存储默认值。"""
+    return current_app.config.get("LEDGER_DATA_PATH")
+
+
+@backup_bp.get("/backup")
+def backup_page():
+    """备份页：下载入口、恢复上传表单和现有本地备份列表分开呈现。"""
+    backups = list_backups(data_file=_configured_data_file())
+    return render_template("backup.html", backups=backups)
+
+
+@backup_bp.get("/backup/download")
+def download_backup():
+    """下载完整 JSON 账本备份。文件名纯 ASCII，带时间戳防覆盖。"""
+    payload, filename = build_download_payload(data_file=_configured_data_file())
+    return Response(
+        payload,
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename={}".format(filename)},
+    )
+
+
+@backup_bp.post("/backup/restore")
+def restore_backup():
+    """接收上传的备份并校验恢复（T13/T14）。
+
+    任何失败（文件过大、JSON 损坏、校验不过）都只 flash 错误并重定向，
+    现有账本由 restore_upload 保证原样不动；成功后提示恢复的记录数
+    和恢复前留存的备份文件名。
+    """
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        flash("请先选择要恢复的 JSON 备份文件", "error")
+        return redirect(url_for("backup.backup_page"))
+
+    try:
+        result = restore_upload(upload.read(), data_file=_configured_data_file())
+    except storage.StorageError as exc:
+        # BackupError 继承自 StorageError，两层错误统一在这里变成页面提示
+        flash("恢复失败：{}".format(exc), "error")
+        return redirect(url_for("backup.backup_page"))
+
+    message = "已恢复 {} 条账目、{} 个类别".format(
+        result["entries"], result["categories"])
+    if result["pre_restore_backup"]:
+        message += "；恢复前的账本已留存为 {}".format(result["pre_restore_backup"])
+    flash(message, "success")
+    return redirect(url_for("backup.backup_page"))

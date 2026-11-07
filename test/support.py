@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import re
 import importlib.machinery
+import secrets
 import sys
 import types
 import unittest
@@ -275,7 +276,9 @@ class LedgerTestCase(unittest.TestCase):
             template_folder=str(package_dir / "templates"),
             static_folder=str(package_dir / "static"),
         )
-        app.secret_key = "test-only"
+        # 每个测试应用实例动态生成签名密钥：flash/session 只在单实例内使用，
+        # 不需要跨运行一致；也不用把密钥字面量提交进仓库
+        app.secret_key = secrets.token_hex(32)
         app.register_blueprint(budget_module.budget_bp)
         app.jinja_loader = ChoiceLoader(
             [DictLoader({"base.html": BASE_TEMPLATE_STUB}), app.jinja_loader]

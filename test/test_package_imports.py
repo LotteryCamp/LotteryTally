@@ -83,7 +83,11 @@ class PackageImportsTests(unittest.TestCase):
                 "    raise AssertionError('Missing shared validation was hidden')\n"
             )
             result = subprocess.run(
-                [sys.executable, "-I", "-B", "-c", script], cwd=sandbox,
+                # -S 跳过 site 初始化：pip install -e . 之类可编辑安装会把
+                # 真实仓库注册成元路径 finder，优先级高于 sys.path，沙箱里
+                # 缺失的 lotterytally.validators 会被真实模块顶替，报错
+                # 检查就形同虚设。-S 让子进程只剩标准库和显式插入的沙箱。
+                [sys.executable, "-I", "-S", "-B", "-c", script], cwd=sandbox,
                 capture_output=True, text=True, encoding="utf-8", timeout=30,
             )
             self.assertEqual(result.returncode, 0, result.stderr)

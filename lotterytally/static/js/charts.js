@@ -140,7 +140,7 @@
     minimumFractionDigits: 2
   });
 
-  const colors = ["#2563eb", "#0f766e", "#b45309", "#7e22ce", "#be185d", "#475569"];
+  const colors = ["#2563eb", "#0f766e", "#b45309", "#7e22ce", "#be185d", "#475569", "#0369a1"];
   const bar = document.createElement("div");
   bar.style.display = "flex";
   bar.style.height = "1.25rem";

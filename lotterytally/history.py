@@ -52,12 +52,9 @@ def create_history_blueprint(
             "copy_enabled": copy_enabled,
             "has_entries": bool(ledger["entries"]),
         }
-        paths = {rule.rule for rule in current_app.url_map.iter_rules()}
-        context["navigation"] = [
-            {"label": label, "path": path}
-            for label, path in (("首页", "/"), ("流水", "/entries"), ("统计", "/stats"))
-            if path in paths
-        ]
+        from lotterytally.navigation import navigation_items
+
+        context["navigation"] = navigation_items()
 
         configured_today = current_app.config.get("LEDGER_TODAY")
         if type(configured_today) is date:

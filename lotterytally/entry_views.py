@@ -49,19 +49,6 @@ __all__ = ["entry_bp"]
 
 entry_bp = Blueprint("entry", __name__, template_folder="templates")
 
-#: 顶部导航项，与应用入口 app.py 的 NAV_ITEMS 保持一致。
-#: base.html 需要 navigation 变量；只保留当前应用实际注册了的页面。
-_NAV_ITEMS = (
-    ("首页", "/"),
-    ("记一笔", "/entries/new"),
-    ("流水", "/entries"),
-    ("统计", "/stats"),
-    ("预算", "/budget"),
-    ("类别", "/categories"),
-    ("备份", "/backup"),
-)
-
-
 # ---------------------------------------------------------------- 依赖
 
 
@@ -96,12 +83,9 @@ def _safe_type(value: Any) -> str:
 
 
 def _navigation():
-    paths = {rule.rule for rule in current_app.url_map.iter_rules()}
-    return [
-        {"label": label, "path": path}
-        for label, path in _NAV_ITEMS
-        if path == "/" or path in paths
-    ]
+    from lotterytally.navigation import navigation_items
+
+    return navigation_items()
 
 
 # ---------------------------------------------------------------- 表单回显

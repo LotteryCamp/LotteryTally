@@ -14,6 +14,8 @@ from typing import Any
 
 from flask import Flask, render_template
 
+from lotterytally.navigation import navigation_items
+
 LOGGER = logging.getLogger(__name__)
 
 # These modules belong to other owners. Registration stays in this one place.
@@ -25,17 +27,6 @@ BLUEPRINTS = (
     ("lotterytally.budget", "budget_bp"),
     ("lotterytally.backup", "backup_bp"),
 )
-
-NAV_ITEMS = (
-    ("首页", "/"),
-    ("记一笔", "/entries/new"),
-    ("流水", "/entries"),
-    ("统计", "/stats"),
-    ("预算", "/budget"),
-    ("类别", "/categories"),
-    ("备份", "/backup"),
-)
-
 
 def _default_ledger_path() -> Path:
     """Return the configured ledger path, defaulting to the repository data directory."""
@@ -116,34 +107,36 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
+    data_path = str(Path(app.config["LEDGER_DATA_PATH"]).expanduser().resolve())
+    app.config["LEDGER_DATA_PATH"] = data_path
+    app.config["DATA_FILE"] = data_path
+
     # 把数据文件路径传导给存储模块：budget、entries 等模块用无参
     # load_ledger()/update_ledger()，不 configure 的话它们会读写
     # 默认路径的账本，而不是本应用配置的 LEDGER_DATA_PATH。
     # configure 放在 test_config 应用之后，测试注入的路径同样生效
     if importlib.util.find_spec("lotterytally.storage") is not None:
         storage_module = importlib.import_module("lotterytally.storage")
-        storage_module.configure(app.config["LEDGER_DATA_PATH"])
+        storage_module.configure(data_path)
+        app.config["LEDGER_LOADER"] = storage_module.load_ledger
 
     app.jinja_env.filters["money"] = _format_money
     _register_available_blueprints(app)
 
+    @app.context_processor
+    def inject_navigation():
+        return {"navigation": navigation_items()}
+
     @app.get("/")
     def home():
         data = _home_data(app)
-        existing_paths = {rule.rule for rule in app.url_map.iter_rules()}
-        navigation = [
-            {"label": label, "path": path}
-            for label, path in NAV_ITEMS
-            if path == "/" or path in existing_paths
-        ]
-        return render_template("home.html", navigation=navigation, **data)
+        return render_template("home.html", **data)
 
     @app.errorhandler(413)
     def payload_too_large(_error):
         return (
             render_template(
                 "base.html",
-                navigation=[{"label": "首页", "path": "/"}],
                 page_title="文件过大",
                 content_message="上传内容超过 2 MB 限制。",
             ),

@@ -383,25 +383,7 @@ def _render(ledger, month, warning=None, form_errors=None, form_values=None):
     )
 
 
-#: 顶部导航项，与应用入口 NAV_ITEMS 保持一致。
-#: base.html 需要 navigation 变量，而应用入口目前只在首页传入；
-#: 应用入口统一注入导航后，这段可以删除。
-_NAV_ITEMS = (
-    ("首页", "/"),
-    ("记一笔", "/entries/new"),
-    ("流水", "/entries"),
-    ("统计", "/stats"),
-    ("预算", "/budget"),
-    ("类别", "/categories"),
-    ("备份", "/backup"),
-)
-
-
 def _navigation():
-    """只保留当前应用实际注册了的页面，避免链接到还不存在的路由。"""
-    paths = {rule.rule for rule in current_app.url_map.iter_rules()}
-    return [
-        {"label": label, "path": path}
-        for label, path in _NAV_ITEMS
-        if path == "/" or path in paths
-    ]
+    from lotterytally.navigation import navigation_items
+
+    return navigation_items()

@@ -25,6 +25,8 @@ __all__ = [
     "EntryError",
     "EntryValidationError",
     "EntryNotFound",
+    "MAX_ENTRY_CENTS",
+    "MAX_ENTRY_TEXT",
     "create_entry",
     "update_entry",
     "delete_entry",
@@ -32,6 +34,9 @@ __all__ = [
     "list_entries",
     "recent_entries",
 ]
+
+MAX_ENTRY_CENTS = 99_999_999_999_999
+MAX_ENTRY_TEXT = f"{MAX_ENTRY_CENTS // 100:,}.{MAX_ENTRY_CENTS % 100:02d}"
 
 # 队友模块延迟导入：缺失时应用仍能启动，真正调用账目服务时才报错。
 
@@ -170,9 +175,12 @@ def recent_entries(limit=10, ledger=None):
 def _validated_fields(form_data):
     validators = _validators()
     try:
-        return validators.validate_entry_fields(form_data)
+        fields = validators.validate_entry_fields(form_data)
     except validators.ValidationError as exc:
         raise EntryValidationError(exc.errors) from exc
+    if fields.get("amount_cents", 0) > MAX_ENTRY_CENTS:
+        raise EntryValidationError({"amount": f"单笔金额不能超过 {MAX_ENTRY_TEXT} 元"})
+    return fields
 
 
 def _check_category(ledger, entry_type, category_id, allow_inactive):

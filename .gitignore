@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+.mimosa/
+# PocketLedger 本地数据：真实账本、演示运行文件和备份不入库，仓库只跟踪虚构样例
+data/ledger.json
+data/backups/
+data/*.json
+!data/ledger.example.json
+*.bak

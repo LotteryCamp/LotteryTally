@@ -1,18 +1,23 @@
 # 杜玉鹤：筛选模块交付与接入说明
 
-对应《PocketLedger 现场编程与技术实施方案》第二节，负责人杜玉鹤（162404109），业务文件为 `filters.py`，独立验收文件为 `tests/test_filters.py`。
+对应《PocketLedger 现场编程与技术实施方案》第二节，负责人杜玉鹤（162404109），业务文件为 `lotterytally/filters.py`，独立验收文件位于 `test/`。
 
 ## 范围与运行
 
 已实现日期、类别 ID、收支类型、金额区间的 AND 组合筛选，以及今天、本周、本月、上月快捷日期、备注子串搜索、日期和金额排序。模块只接收统一模型的内存账目，不读写账本；返回全部匹配结果，分页由流水模块负责。
 
-模块可在 Python 3.10 及以上运行，无第三方依赖。当前实际验证环境为 Windows PowerShell、Python 3.14.5；从仓库根目录执行：
+源码统一放入 `lotterytally/` 包，项目信息、Python 版本及 Flask 应用依赖统一维护在根目录的 `pyproject.toml`。筛选模块自身仅使用标准库。当前实际验证环境为 Windows PowerShell、Python 3.14.5；从仓库根目录执行：
 
 ```powershell
-python -m unittest discover -s tests -p "test_filters.py" -v
+python -m pip install -e .
+python -m unittest discover -s test -v
 ```
 
-2026-11-07 实际运行结果：40 项测试全部通过。
+筛选行为测试位于 `test/test_filters.py`，包内共享校验导入的回归测试位于 `test/test_package_imports.py`。
+
+2026-11-07 实际运行结果：43 项测试全部通过，包含原有 40 项筛选测试和 3 项包导入回归测试。
+
+同日已验证 editable 安装、wheel 构建与安装、依赖完整性及仓库外导入。wheel 只包含 `lotterytally` 源码包及分发元数据；从仓库外针对已安装 wheel 运行同一套 43 项测试，全部通过。
 
 流水、统计、CSV 路由以及完整 Flask 应用由相应负责人接入后再验收。本次交付由 Codex 辅助实现、复核并执行自动化测试，提交使用当前连接的 GitHub 账号身份。
 
@@ -33,7 +38,7 @@ python -m unittest discover -s tests -p "test_filters.py" -v
 
 ```python
 from datetime import date
-from filters import parse_filters
+from lotterytally.filters import parse_filters
 
 criteria = parse_filters({
     "preset": "this_month",
@@ -64,7 +69,7 @@ criteria = parse_filters({
 | `sort` | 默认 `date_desc`，可用 `date_asc`、`amount_asc`、`amount_desc` |
 | `preset` | `today`、`this_week`、`this_month`、`last_month` |
 
-筛选金额沿用方案的正金额规则：拒绝 `0`、负数、超过两位小数、科学计数法、NaN、Infinity；不填金额即不设该侧范围。共享 `validators.parse_amount_cents` 可用时直接复用，其契约为返回正整数分、非法金额抛出 `ValueError`。共享模块尚未合入时使用等价的字符串格式检查和 `Decimal` 后备转换，保证模块能独立验收。不会使用浮点数计算金额。
+筛选金额沿用方案的正金额规则：拒绝 `0`、负数、超过两位小数、科学计数法、NaN、Infinity；不填金额即不设该侧范围。共享 `lotterytally.validators.parse_amount_cents` 可用时通过包内相对导入直接复用，其契约为返回正整数分、非法金额抛出 `ValueError`。共享模块尚未合入时使用等价的字符串格式检查和 `Decimal` 后备转换，保证模块能独立验收；共享模块内部的其他依赖错误继续抛出，便于定位集成问题。不会使用浮点数计算金额。
 
 起始日期晚于结束日期、最小金额大于最大金额都会报字段错误，避免页面静默显示误导性的空结果。独立字段错误一起报告。
 
@@ -89,7 +94,7 @@ criteria = parse_filters({
 
 ```python
 from datetime import datetime
-from filters import (
+from lotterytally.filters import (
     FilterValidationError, parse_filters, filter_entries,
     sort_entries, filters_to_query,
 )

@@ -1,6 +1,6 @@
 """Contract tests for the shared ledger filtering module.
 
-Run from the repository root with ``python -m unittest discover -s tests``.
+Run from the repository root with ``python -m unittest discover -s test``.
 The data below is fictional and intentionally independent of storage and Flask.
 """
 
@@ -8,7 +8,7 @@ from copy import deepcopy
 from datetime import date
 import unittest
 
-from filters import (
+from lotterytally.filters import (
     FilterValidationError,
     filter_entries,
     filters_to_query,

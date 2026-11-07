@@ -69,7 +69,9 @@ criteria = parse_filters({
 | `sort` | 默认 `date_desc`，可用 `date_asc`、`amount_asc`、`amount_desc` |
 | `preset` | `today`、`this_week`、`this_month`、`last_month` |
 
-筛选金额沿用方案的正金额规则：拒绝 `0`、负数、超过两位小数、科学计数法、NaN、Infinity；不填金额即不设该侧范围。共享 `lotterytally.validators.parse_amount_cents` 可用时通过包内相对导入直接复用，其契约为返回正整数分、非法金额抛出 `ValueError`。共享模块尚未合入时使用等价的字符串格式检查和 `Decimal` 后备转换，保证模块能独立验收；共享模块内部的其他依赖错误继续抛出，便于定位集成问题。不会使用浮点数计算金额。
+筛选金额沿用方案的正金额规则：拒绝 `0`、负数、超过两位小数、科学计数法、NaN、Infinity；不填金额即不设该侧范围。通过 `from lotterytally.validators import parse_amount_cents` 导入并复用共享金额解析器，其契约为返回正整数分、非法金额抛出 `ValueError`。共享模块尚未合入时使用等价的字符串格式检查和 `Decimal` 后备转换，保证模块能独立验收；共享模块内部的其他依赖错误继续抛出，便于定位集成问题。不会使用浮点数计算金额。
+
+当前后备仅用于共享模块缺失的阶段。团队合入 `lotterytally/validators.py` 后会自动调用共享实现，完成联调后应删除筛选模块中的后备金额逻辑。
 
 起始日期晚于结束日期、最小金额大于最大金额都会报字段错误，避免页面静默显示误导性的空结果。独立字段错误一起报告。
 

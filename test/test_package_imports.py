@@ -1,4 +1,4 @@
-"""Regression checks for package-relative shared-validator imports."""
+"""Regression checks for package-qualified shared-validator imports."""
 
 import json
 from pathlib import Path

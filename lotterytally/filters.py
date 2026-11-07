@@ -13,7 +13,7 @@ from decimal import Decimal, localcontext
 from typing import Any, Iterable, Mapping, TypedDict
 
 try:
-    from .validators import parse_amount_cents as _shared_amount_parser
+    from lotterytally.validators import parse_amount_cents as _shared_amount_parser
 except ModuleNotFoundError as exc:
     if exc.name != f"{__package__}.validators":
         raise

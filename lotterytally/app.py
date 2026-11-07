@@ -116,6 +116,14 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
+    # 把数据文件路径传导给存储模块：budget、entries 等模块用无参
+    # load_ledger()/update_ledger()，不 configure 的话它们会读写
+    # 默认路径的账本，而不是本应用配置的 LEDGER_DATA_PATH。
+    # configure 放在 test_config 应用之后，测试注入的路径同样生效
+    if importlib.util.find_spec("lotterytally.storage") is not None:
+        storage_module = importlib.import_module("lotterytally.storage")
+        storage_module.configure(app.config["LEDGER_DATA_PATH"])
+
     app.jinja_env.filters["money"] = _format_money
     _register_available_blueprints(app)
 

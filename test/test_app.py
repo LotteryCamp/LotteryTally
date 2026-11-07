@@ -38,9 +38,17 @@ class AppShellTests(unittest.TestCase):
 
         self.assertEqual(_default_ledger_path(), expected)
 
-    def test_homepage_reads_the_configured_ledger_when_storage_module_is_absent(self):
+    def test_homepage_reads_the_configured_ledger_path(self):
+        """首页通过存储模块读取 LEDGER_DATA_PATH 指向的账本。
+
+        旧版在存储模块不存在时走 JSON 回退读取（fixture 因此没有
+        schema_version）。存储模块现在已合入并按任务卡做版本检查，
+        账本必须带 schema_version 才能被读取 —— 损坏/缺版本的文件
+        会被拒绝而不是被当成空账本展示。
+        """
         ledger = {
-            "categories": [{"id": "food", "name": "饮食", "type": "expense"}],
+            "schema_version": 1,
+            "categories": [{"id": "food", "name": "饮食", "type": "expense", "active": True}],
             "entries": [
                 {
                     "id": "entry-1",
@@ -49,6 +57,7 @@ class AppShellTests(unittest.TestCase):
                     "amount_cents": 1234,
                     "category_id": "food",
                     "note": "午餐",
+                    "created_at": "2026-11-07T12:00:00+08:00",
                 }
             ],
         }

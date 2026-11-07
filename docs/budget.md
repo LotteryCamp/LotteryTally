@@ -1,4 +1,4 @@
-# 模型、账目服务与预算模块
+﻿# 模型、账目服务与预算模块
 
 负责人：佘博海 102401137
 
@@ -136,6 +136,8 @@ lotterytally/
 - 依赖延迟导入：`lotterytally.storage`、`lotterytally.validators` 尚未合入时，应用仍能正常启动，
   只有访问预算页或调用账目服务时才提示缺模块，不会让 `app.py` 在导入阶段崩溃。
 - 读账本走 `LEDGER_LOADER` 注入（与统计模块同一个配置键），未注入时调用 `storage.load_ledger()`。
+- `base.html` 的顶部导航依赖 `navigation` 变量，而应用入口目前只在首页传入；预算页渲染时自行补齐
+  （只列出当前已注册的页面），等应用入口统一注入后可以删掉这段兜底。
 
 ## 五、自测
 
@@ -148,11 +150,11 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m unittest discover -s test -v
 ```
 
-当前 **75 个用例全部通过**（Windows / Python 3.14.6 / Flask 3.1.3）：
+当前 **76 个用例全部通过**（Windows / Python 3.14.6 / Flask 3.1.3）：
 
 - `test/test_models.py`（27）：日期真实性、闰年 2 月、跨年月份换算、排序口径、账本结构校验的各种破坏场景；
 - `test/test_entries.py`（19）：金额文本、非法日期、类别存在/类型/停用规则、编辑保留 `id` 与 `created_at`、删除只删目标、最近 10 笔口径；
-- `test/test_budget.py`（29）：T08 超支 15 元、T09 改金额后剩余 10 元、T10 改到上月、正好用完、未设预算、进度封顶、保存与清除、页面 GET/POST。
+- `test/test_budget.py`（30）：T08 超支 15 元、T09 改金额后剩余 10 元、T10 改到上月、正好用完、未设预算、进度封顶、保存与清除、页面 GET/POST。
 
 金额文本的最终规则由 `validators` 模块（何慧渊）负责；`entries` 侧的测试验证的是“错误被正确包装成 `EntryValidationError` 并带字段名”。
 

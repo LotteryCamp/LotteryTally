@@ -250,6 +250,11 @@ class BudgetPageTests(BudgetTestBase):
         self.assertIn('value="1500.00"', html)
         self.assertIn('value="500.00"', html)
 
+    def test_page_provides_navigation_and_stylesheet(self):
+        html = self.flask_client().get(f"/budget?month={MONTH}").get_data(as_text=True)
+        self.assertIn('href="/budget"', html)   # base.html 需要 navigation，预算页自己补齐
+        self.assertIn("css/budget.css", html)   # 预算页专用样式随页面引入
+
     def test_page_defaults_to_current_month(self):
         html = self.flask_client().get("/budget").get_data(as_text=True)
         self.assertIn(models.month_label(models.current_month()), html)

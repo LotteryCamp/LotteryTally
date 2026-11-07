@@ -45,10 +45,12 @@ DEFAULT_CATEGORIES = [
 ]
 
 #: 预算页渲染测试用的最小父模板；真实 base.html 由布局模块提供。
+#: 保留 title/head/navigation/content/scripts 五个入口，与 app-shell 的 base.html 对齐。
 BASE_TEMPLATE_STUB = (
     "<!doctype html><html><head><title>{% block title %}{% endblock %}</title>"
-    "{% block head %}{% endblock %}</head>"
-    "<body>{% block content %}{% endblock %}{% block scripts %}{% endblock %}</body></html>"
+    "{% block head %}{% endblock %}</head><body>"
+    '<nav>{% for item in navigation %}<a href="{{ item.path }}">{{ item.label }}</a>{% endfor %}</nav>'
+    "{% block content %}{% endblock %}{% block scripts %}{% endblock %}</body></html>"
 )
 
 

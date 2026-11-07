@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}预算 · PocketLedger 口袋账本{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/budget.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="budget-page">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="budget-flash-stack">
+        {% for category, message in messages %}
+          <p class="budget-flash budget-flash-{{ category }}">{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  {% if warning %}<p class="budget-flash budget-flash-error">{{ warning }}</p>{% endif %}
+  {% for message in general_errors %}<p class="budget-flash budget-flash-error">{{ message }}</p>{% endfor %}
+
+  <section class="budget-head">
+    <div>
+      <span class="eyebrow">预算管理</span>
+      <h1>预算</h1>
+      <p class="budget-sub">按账目日期归属月份统计，收入不计入支出预算；已用金额随账目自动重算。</p>
+    </div>
+    <nav class="budget-month-nav" aria-label="切换月份">
+      <a class="button button-secondary" href="{{ url_for('budget.budget_page', month=prev_month) }}">‹ 上月</a>
+      <span class="budget-month-pill">{{ month_label }}</span>
+      <a class="button button-secondary" href="{{ url_for('budget.budget_page', month=next_month) }}">下月 ›</a>
+    </nav>
+  </section>
+
+  <section class="budget-monthbar">
+    <form class="budget-monthform" method="get" action="{{ url_for('budget.budget_page') }}">
+      <label for="month">查看月份</label>
+      <input class="budget-input" type="month" id="month" name="month" value="{{ month }}">
+      <button class="button button-secondary" type="submit">查看</button>
+      {% if month != current_month %}
+        <a class="text-link" href="{{ url_for('budget.budget_page', month=current_month) }}">回到本月</a>
+      {% endif %}
+    </form>
+    {% if months %}
+      <div class="budget-quick">
+        <span class="is-muted">账本里出现过的月份：</span>
+        {% for m in months if m != month %}
+          {% if loop.index <= 6 %}
+            <a class="budget-chip" href="{{ url_for('budget.budget_page', month=m) }}">{{ m }}</a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="budget-summary">
+    <article class="budget-panel budget-panel-total">
+      <h2 class="budget-panel-title">总预算</h2>
+      {% if status.total.has_limit %}
+        <p class="budget-big">{{ status.total.limit_text }}<span class="budget-unit">元</span></p>
+        <p class="budget-meta">
+          已用 {{ status.total.used_text }} 元
+          <span class="budget-badge budget-badge-{{ status.total.status }}">{{ status.total.status_text }}</span>
+        </p>
+        <div class="budget-bar budget-bar-{{ status.total.status }}"><span style="width: {{ status.total.bar_percent }}%"></span></div>
+        <p class="budget-foot">{{ status.total.percent }}% 已使用</p>
+      {% else %}
+        <p class="budget-big is-muted">未设置</p>
+        <p class="budget-meta">本月已用 {{ status.total.used_text }} 元</p>
+        <p class="budget-foot">在下方填写总预算后保存</p>
+      {% endif %}
+    </article>
+
+    <article class="budget-panel">
+      <h2 class="budget-panel-title">本月支出</h2>
+      <p class="budget-big">{{ status.expense_cents|yuan }}<span class="budget-unit">元</span></p>
+      <p class="budget-meta">共 {{ status.expense_count }} 笔支出</p>
+      <p class="budget-foot">收入、其他月份账目不参与预算</p>
+    </article>
+
+    <article class="budget-panel">
+      <h2 class="budget-panel-title">分类预算</h2>
+      <p class="budget-big">{{ status.budgeted_count }}<span class="budget-unit">个已设</span></p>
+      <p class="budget-meta">
+        {% if status.unbudgeted_count %}
+          {{ status.unbudgeted_count }} 个分类有支出但未设预算，共 {{ status.unbudgeted_cents|yuan }} 元
+        {% else %}
+          有支出的分类都已设置预算
+        {% endif %}
+      </p>
+      <p class="budget-foot">分类预算之和不需要等于总预算</p>
+    </article>
+  </section>
+
+  <form class="budget-form" method="post" action="{{ url_for('budget.save_budget_page') }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    {% if form_errors.get('month') %}
+      <p class="budget-field-error">{{ form_errors.get('month') }}</p>
+    {% endif %}
+
+    <section class="budget-card">
+      <div class="budget-card-head">
+        <h2>总预算</h2>
+        <p>{{ month_label }}的整月支出上限；留空并保存表示取消总预算。</p>
+      </div>
+      <div class="budget-field">
+        <label for="total">每月上限（元）</label>
+        {% set submitted_total = form_values.get('total') if form_values else None %}
+        <input class="budget-input budget-input-wide" type="text" inputmode="decimal" id="total" name="total"
+               value="{{ submitted_total if submitted_total is not none else (status.total.limit_text if status.total.has_limit else '') }}"
+               placeholder="例如 1500">
+        {% if form_errors.get('total') %}<p class="budget-field-error">{{ form_errors.get('total') }}</p>{% endif %}
+      </div>
+    </section>
+
+    <section class="budget-card">
+      <div class="budget-card-head">
+        <h2>分类预算</h2>
+        <p>同一笔支出同时计入总预算和它所属分类的预算；留空表示该分类不设上限。</p>
+      </div>
+      <div class="table-wrap">
+        <table class="transaction-table budget-table">
+          <thead>
+            <tr>
+              <th scope="col">分类</th>
+              <th scope="col" class="amount-column">预算上限（元）</th>
+              <th scope="col" class="amount-column">本月已用</th>
+              <th scope="col">状态</th>
+              <th scope="col" class="budget-progress-col">进度</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cat in status.categories %}
+              {% set submitted = form_values.get('limit_' ~ cat.category_id) if form_values else None %}
+              {% set value = submitted if submitted is not none else (cat.limit_text if cat.has_limit else '') %}
+              {% set field = 'limit_' ~ cat.category_id %}
+              <tr{% if not cat.active %} class="budget-row-muted"{% endif %}>
+                <td>
+                  <span class="category-cell">{{ cat.name }}</span>
+                  {% if not cat.active %}<span class="budget-badge budget-badge-unset">已停用</span>{% endif %}
+                </td>
+                <td class="amount-column">
+                  <input class="budget-input budget-input-sm" type="text" inputmode="decimal" name="{{ field }}"
+                         value="{{ value }}" placeholder="不设" aria-label="{{ cat.name }}的预算上限">
+                  {% if form_errors.get(field) %}<p class="budget-field-error">{{ form_errors.get(field) }}</p>{% endif %}
+                </td>
+                <td class="amount-column">{{ cat.used_text }}</td>
+                <td>
+                  {% if cat.has_limit %}
+                    <span class="budget-badge budget-badge-{{ cat.status }}">{{ cat.status_text }}</span>
+                  {% else %}
+                    <span class="is-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="budget-progress-col">
+                  {% if cat.has_limit %}
+                    <div class="budget-bar budget-bar-{{ cat.status }}"><span style="width: {{ cat.bar_percent }}%"></span></div>
+                    <span class="budget-percent">{{ cat.percent }}%</span>
+                  {% else %}
+                    <span class="is-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="5" class="is-muted">账本里还没有支出类别。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="budget-card-foot">
+        <button class="button button-primary" type="submit">保存预算</button>
+        <span class="is-muted">留空并保存即清除该项预算。</span>
+      </div>
+    </section>
+  </form>
+
+  {% if status.expense_count == 0 %}
+    <p class="budget-hint">{{ month_label }}还没有支出记录。记一笔支出后，这里的已用金额和进度会自动更新。</p>
+  {% endif %}
+
+  <section class="budget-note">
+    <h2>口径说明</h2>
+    <ul>
+      <li>预算按<strong>账目日期</strong>归属月份：录入一笔上月支出，更新的是上月预算。</li>
+      <li>只有支出进入预算；收入不影响任何预算数字。</li>
+      <li>预算只保存上限，已用金额每次由账目实时汇总，所以修改、删除账目后无需再手动同步。</li>
+      <li>状态按整数分判断：已用小于上限显示剩余，等于上限显示用完，大于上限显示超支金额。</li>
+    </ul>
+  </section>
+</div>
+{% endblock %}

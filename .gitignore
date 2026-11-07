@@ -65,6 +65,8 @@ db.sqlite3-journal
 # Flask stuff:
 instance/
 .webassets-cache
+/data/ledger.json
+/data/demo_ledger.json
 
 # Scrapy stuff:
 .scrapy

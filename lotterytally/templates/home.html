@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}首页 · PocketLedger 口袋账本{% endblock %}
+
+{% block content %}
+  <section class="welcome-row">
+    <div class="welcome-copy-block">
+      <span class="eyebrow">个人收支</span>
+      <h1>把每一笔收支，<span>记清楚。</span></h1>
+      <p class="welcome-copy">分类记录日常开销与收入，随时回看账目变化。</p>
+    </div>
+    {% if '/entries/new' in navigation | map(attribute='path') | list %}
+      <a class="button button-primary" href="/entries/new"><span class="button-icon" aria-hidden="true">＋</span> 记一笔</a>
+    {% endif %}
+  </section>
+
+  <section class="overview-section" aria-labelledby="overview-title">
+    <div class="section-heading overview-heading">
+      <div><span class="eyebrow">账本概览</span><h2 id="overview-title">收支一览</h2></div>
+      <span class="overview-period">全部记录</span>
+    </div>
+    <div class="summary-grid">
+      <article class="summary-panel summary-income">
+        <span class="summary-symbol" aria-hidden="true">↗</span>
+        <span class="summary-label">累计收入</span>
+        <strong>{% if integration_ready %}¥{{ stats.income_cents | money }}{% else %}—{% endif %}</strong>
+        <span class="summary-foot">所有收入记录</span>
+      </article>
+      <article class="summary-panel summary-expense">
+        <span class="summary-symbol" aria-hidden="true">↘</span>
+        <span class="summary-label">累计支出</span>
+        <strong>{% if integration_ready %}¥{{ stats.expense_cents | money }}{% else %}—{% endif %}</strong>
+        <span class="summary-foot">所有支出记录</span>
+      </article>
+      <article class="summary-panel summary-balance">
+        <span class="summary-symbol" aria-hidden="true">＝</span>
+        <span class="summary-label">当前结余</span>
+        <strong>{% if integration_ready %}¥{{ stats.balance_cents | money }}{% else %}—{% endif %}</strong>
+        <span class="summary-foot">收入减去支出</span>
+      </article>
+      <article class="summary-panel summary-count">
+        <span class="summary-symbol" aria-hidden="true">#</span>
+        <span class="summary-label">记录笔数</span>
+        <strong>{% if integration_ready %}{{ stats.count }}{% else %}—{% endif %}</strong>
+        <span class="summary-foot">收支流水总数</span>
+      </article>
+    </div>
+  </section>
+
+  <section class="recent-section">
+    <div class="section-heading">
+      <div><span class="eyebrow">账目动态</span><h2>最近记录</h2></div>
+      {% if '/entries' in navigation | map(attribute='path') | list %}<a class="text-link" href="/entries">查看全部 <span aria-hidden="true">→</span></a>{% endif %}
+    </div>
+
+    {% if transactions %}
+      <div class="table-wrap">
+        <table class="transaction-table">
+          <thead><tr><th scope="col">日期</th><th scope="col">类别</th><th scope="col">备注</th><th scope="col" class="amount-column">金额</th></tr></thead>
+          <tbody>
+            {% for item in transactions %}
+              <tr>
+                <td class="date-cell">{{ item.date }}</td>
+                <td><span class="category-cell">{{ category_names.get(item.category_id, item.category_id) }}</span></td>
+                <td class="note-cell">{{ item.note or "—" }}</td>
+                <td class="amount-cell {% if item.type == 'income' %}is-income{% else %}is-expense{% endif %}">{% if item.type == 'income' %}+{% else %}−{% endif %}¥{{ item.amount_cents | money }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">＋</span>
+        <h3>还没有收支记录</h3>
+        <p>记下第一笔收入或支出，账目会按时间显示在这里。</p>
+        {% if '/entries/new' in navigation | map(attribute='path') | list %}<a class="button button-secondary" href="/entries/new">添加第一笔</a>{% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

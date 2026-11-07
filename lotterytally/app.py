@@ -12,18 +12,14 @@ import secrets
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template, request
 
 LOGGER = logging.getLogger(__name__)
 
 # These modules belong to other owners. Registration stays in this one place.
 BLUEPRINTS = (
-    ("lotterytally.entry_views", "entry_bp"),
-    ("lotterytally.history", "history_bp"),
     ("lotterytally.stats", "stats_bp"),
-    ("lotterytally.categories", "categories_bp"),
     ("lotterytally.budget", "budget_bp"),
-    ("lotterytally.backup", "backup_bp"),
 )
 
 NAV_ITEMS = (
@@ -57,6 +53,27 @@ def _register_available_blueprints(app: Flask) -> None:
             LOGGER.warning("Skipping %s: %s is not exported", module_name, blueprint_name)
             continue
         app.register_blueprint(blueprint)
+
+
+def _navigation(app: Flask) -> list[dict[str, str]]:
+    existing_paths = {rule.rule for rule in app.url_map.iter_rules()}
+    return [
+        {"label": label, "path": path}
+        for label, path in NAV_ITEMS
+        if path == "/" or path in existing_paths
+    ]
+
+
+def _register_history(app: Flask) -> None:
+    from lotterytally import categories, history, storage
+
+    app.register_blueprint(
+        history.create_history_blueprint(
+            storage.load_ledger,
+            categories.list_categories,
+            new_entry_endpoint="entry_new",
+        )
+    )
 
 
 def _home_data(app: Flask) -> dict[str, Any]:
@@ -116,18 +133,46 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
+    data_path = str(Path(app.config["LEDGER_DATA_PATH"]).expanduser().resolve())
+    app.config["LEDGER_DATA_PATH"] = data_path
+    app.config["DATA_FILE"] = data_path
+
+    if importlib.util.find_spec("lotterytally.storage") is not None:
+        storage = importlib.import_module("lotterytally.storage")
+        storage.configure(data_path)
+        app.config["LEDGER_LOADER"] = storage.load_ledger
+
     app.jinja_env.filters["money"] = _format_money
     _register_available_blueprints(app)
+    _register_history(app)
+
+    @app.route("/entries/new", methods=["GET", "POST"])
+    def entry_new():
+        from lotterytally import categories, entries, storage
+
+        ledger = storage.load_ledger()
+        form = request.form if request.method == "POST" else {}
+        errors = {}
+        if request.method == "POST":
+            try:
+                entries.create_entry(request.form)
+            except entries.EntryValidationError as error:
+                errors = error.errors
+            else:
+                return redirect("/entries")
+
+        return render_template(
+            "entry_form.html",
+            navigation=_navigation(app),
+            categories=categories.list_categories(ledger, active_only=True),
+            form=form,
+            errors=errors,
+        ), 400 if errors else 200
 
     @app.get("/")
     def home():
         data = _home_data(app)
-        existing_paths = {rule.rule for rule in app.url_map.iter_rules()}
-        navigation = [
-            {"label": label, "path": path}
-            for label, path in NAV_ITEMS
-            if path == "/" or path in existing_paths
-        ]
+        navigation = _navigation(app)
         return render_template("home.html", navigation=navigation, **data)
 
     @app.errorhandler(413)

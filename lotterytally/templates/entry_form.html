@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}记一笔 · PocketLedger 口袋账本{% endblock %}
+
+{% block content %}
+  <section class="entry-page">
+    <header class="entry-heading">
+      <span class="eyebrow">新增记录</span>
+      <h1>记一笔</h1>
+      <p>记录收入或支出，金额将按人民币精确到分保存。</p>
+    </header>
+
+    <form class="entry-form" method="post" action="{{ url_for('entry_new') }}">
+      {% if errors.get('form') %}<p class="entry-error" role="alert">{{ errors.form }}</p>{% endif %}
+
+      <fieldset class="entry-type-fieldset">
+        <legend>收支类型</legend>
+        <label class="entry-type-option">
+          <input type="radio" name="type" value="expense"{% if form.get('type', 'expense') == 'expense' %} checked{% endif %}>
+          <span>支出</span>
+        </label>
+        <label class="entry-type-option">
+          <input type="radio" name="type" value="income"{% if form.get('type') == 'income' %} checked{% endif %}>
+          <span>收入</span>
+        </label>
+        {% if errors.get('type') %}<span class="entry-error" role="alert">{{ errors.type }}</span>{% endif %}
+      </fieldset>
+
+      <div class="entry-field-grid">
+        <label class="entry-field" for="amount">
+          <span>金额 <b>必填</b></span>
+          <div class="entry-amount-input"><span>¥</span><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" value="{{ form.get('amount', '') }}" required></div>
+          {% if errors.get('amount') %}<small class="entry-error" role="alert">{{ errors.amount }}</small>{% endif %}
+        </label>
+
+        <label class="entry-field" for="date">
+          <span>日期 <b>必填</b></span>
+          <input id="date" name="date" type="date" value="{{ form.get('date', '') }}" required>
+          {% if errors.get('date') %}<small class="entry-error" role="alert">{{ errors.date }}</small>{% endif %}
+        </label>
+
+        <label class="entry-field" for="category_id">
+          <span>类别 <b>必填</b></span>
+          <select id="category_id" name="category_id" required>
+            <option value="">选择类别</option>
+            {% for category in categories %}
+              <option value="{{ category.id }}"{% if form.get('category_id') == category.id %} selected{% endif %} data-type="{{ category.type }}">{{ category.name }}（{{ '收入' if category.type == 'income' else '支出' }}）</option>
+            {% endfor %}
+          </select>
+          {% if errors.get('category_id') %}<small class="entry-error" role="alert">{{ errors.category_id }}</small>{% endif %}
+        </label>
+
+        <label class="entry-field" for="note">
+          <span>备注 <b>选填</b></span>
+          <input id="note" name="note" type="text" maxlength="200" value="{{ form.get('note', '') }}" placeholder="添加说明">
+          {% if errors.get('note') %}<small class="entry-error" role="alert">{{ errors.note }}</small>{% endif %}
+        </label>
+      </div>
+
+      <div class="entry-form-actions">
+        <a class="button button-secondary" href="{{ url_for('history.show_entries') }}">取消</a>
+        <button class="button button-primary" type="submit">保存记录</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (() => {
+    const types = document.querySelectorAll('input[name="type"]');
+    const category = document.getElementById('category_id');
+    const updateCategories = () => {
+      const type = document.querySelector('input[name="type"]:checked').value;
+      for (const option of category.options) {
+        if (option.value) option.hidden = option.dataset.type !== type;
+      }
+      if (category.selectedOptions[0]?.hidden) category.value = '';
+    };
+    types.forEach((input) => input.addEventListener('change', updateCategories));
+    updateCategories();
+  })();
+</script>
+{% endblock %}

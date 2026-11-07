@@ -134,17 +134,23 @@
     return;
   }
 
-  const maxAmount = expenses[0].amount_cents;
+  const totalAmount = expenses.reduce((total, { amount_cents }) => total + amount_cents, 0);
+  const percent = new Intl.NumberFormat("zh-CN", {
+    style: "percent",
+    minimumFractionDigits: 2
+  });
 
   for (const { category_name, label, amount_cents } of expenses) {
     const row = document.createElement("div");
     row.style.marginBottom = "0.75rem";
 
+    const share = amount_cents / totalAmount;
     const caption = document.createElement("div");
-    caption.textContent = (category_name ?? label ?? "未分类") + " " + currency.format(amount_cents / 100);
+    caption.textContent = (category_name ?? label ?? "未分类") + " " +
+      currency.format(amount_cents / 100) + "（" + percent.format(share) + "）";
 
     const bar = document.createElement("div");
-    bar.style.width = (amount_cents / maxAmount) * 100 + "%";
+    bar.style.width = share * 100 + "%";
     bar.style.height = "0.75rem";
     bar.style.backgroundColor = "#2563eb";
     bar.style.borderRadius = "0.25rem";

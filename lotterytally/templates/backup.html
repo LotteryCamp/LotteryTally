@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}备份与恢复 - PocketLedger 口袋账本{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, text in messages %}
+      <div class="message-page {{ category }}" role="alert"><p>{{ text }}</p></div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<section>
+  <span class="eyebrow">PocketLedger</span>
+  <h1>备份与恢复</h1>
+  <p>账本数据保存在本机。下载一份 JSON 备份留存，或从备份恢复整个账本。</p>
+</section>
+
+<section aria-labelledby="download-title">
+  <h2 id="download-title">下载备份</h2>
+  <p>导出完整账本（账目、类别、预算）为 JSON 文件，文件名带时间戳，多次下载不会互相覆盖。</p>
+  <a class="button" href="{{ url_for('backup.download_backup') }}">下载 JSON 备份</a>
+</section>
+
+<section aria-labelledby="restore-title">
+  <h2 id="restore-title">从备份恢复</h2>
+  <p>上传此前下载的 JSON 备份。恢复前会校验文件内容，<strong>恢复成功前账本不会被改动</strong>；
+     恢复前的当前账本会自动留存一份，出问题可以找回。</p>
+  <form method="post" action="{{ url_for('backup.restore_backup') }}"
+        enctype="multipart/form-data"
+        onsubmit="return confirm('恢复将用备份内容替换当前账本。\n\n恢复前会自动留存当前账本，确定继续吗？');">
+    <input type="file" name="file" accept=".json,application/json" required>
+    <button type="submit" class="button button-secondary">上传并恢复</button>
+  </form>
+  <p><small>文件上限 2 MB，仅接受本系统导出的 JSON 备份。</small></p>
+</section>
+
+<section aria-labelledby="local-backups-title">
+  <h2 id="local-backups-title">本机留存备份</h2>
+  {% if backups %}
+  <p>以下是恢复流程自动留存的账本副本（最新在前），可下载后再次用于恢复。</p>
+  <ul>
+    {% for name in backups %}
+    <li>{{ name }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>暂无留存的备份文件。</p>
+  {% endif %}
+</section>
+{% endblock %}

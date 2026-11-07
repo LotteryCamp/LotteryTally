@@ -47,6 +47,8 @@ STATUS_OVER = "over"
 
 TOTAL_FIELD = "total"
 LIMIT_FIELD_PREFIX = "limit_"
+MAX_BUDGET_CENTS = 99_999_999_999_999
+MAX_BUDGET_TEXT = f"{MAX_BUDGET_CENTS // 100:,}.{MAX_BUDGET_CENTS % 100:02d}"
 
 
 class BudgetError(Exception):
@@ -253,6 +255,19 @@ def save_budget(month, total_cents, category_limits):
     if models.parse_month(month) is None:
         raise BudgetError({"month": "月份格式必须是 YYYY-MM"})
 
+    limits_by_field = {TOTAL_FIELD: total_cents}
+    limits_by_field.update(
+        (f"{LIMIT_FIELD_PREFIX}{category_id}", cents)
+        for category_id, cents in category_limits.items()
+    )
+    errors = {
+        field: f"预算金额不能超过 {MAX_BUDGET_TEXT} 元"
+        for field, cents in limits_by_field.items()
+        if cents is not None and int(cents) > MAX_BUDGET_CENTS
+    }
+    if errors:
+        raise BudgetError(errors)
+
     snapshot = {}
 
     def change(ledger):
@@ -294,10 +309,14 @@ def _parse_limit(text, field, errors):
         return None
     validators = _validators()
     try:
-        return validators.parse_amount_cents(raw, field=field)
+        cents = validators.parse_amount_cents(raw, field=field)
     except validators.ValidationError as exc:
         errors[field] = exc.errors.get(field, "预算金额格式不正确")
         return None
+    if cents > MAX_BUDGET_CENTS:
+        errors[field] = f"预算金额不能超过 {MAX_BUDGET_TEXT} 元"
+        return None
+    return cents
 
 
 # ---------------------------------------------------------------- 页面
@@ -349,6 +368,7 @@ def _render(ledger, month, warning=None, form_errors=None, form_values=None):
     return render_template(
         "budget.html",
         status=status,
+        max_budget_text=MAX_BUDGET_TEXT,
         month=month,
         month_label=models.month_label(month),
         prev_month=models.shift_month(month, -1),

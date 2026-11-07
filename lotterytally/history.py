@@ -1,9 +1,10 @@
 """Read-only ledger history and the home page's recent entries."""
 
-from datetime import datetime
+from datetime import date, datetime
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, current_app, render_template, request
 
+from .categories import list_categories
 from .filters import (
     FilterValidationError,
     filter_entries,
@@ -51,8 +52,20 @@ def create_history_blueprint(
             "copy_enabled": copy_enabled,
             "has_entries": bool(ledger["entries"]),
         }
+        paths = {rule.rule for rule in current_app.url_map.iter_rules()}
+        context["navigation"] = [
+            {"label": label, "path": path}
+            for label, path in (("首页", "/"), ("流水", "/entries"), ("统计", "/stats"))
+            if path in paths
+        ]
 
-        today = datetime.now().astimezone().date()
+        configured_today = current_app.config.get("LEDGER_TODAY")
+        if type(configured_today) is date:
+            today = configured_today
+        elif isinstance(configured_today, str):
+            today = date.fromisoformat(configured_today)
+        else:
+            today = datetime.now().astimezone().date()
         try:
             criteria = parse_filters(request.args, today)
         except FilterValidationError as error:
@@ -86,3 +99,14 @@ def create_history_blueprint(
         )
 
     return history
+
+
+def _load_app_ledger():
+    """Resolve the ledger per request so CLI paths and separate apps stay isolated."""
+    from .storage import load_ledger
+
+    path = current_app.config.get("LEDGER_DATA_PATH") or current_app.config.get("DATA_FILE")
+    return load_ledger(path)
+
+
+history_bp = create_history_blueprint(_load_app_ledger, list_categories)

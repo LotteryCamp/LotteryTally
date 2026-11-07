@@ -9,16 +9,9 @@ from __future__ import annotations
 import calendar
 import re
 from datetime import date, datetime, timedelta
-from decimal import Decimal, localcontext
 from typing import Any, Iterable, Mapping, TypedDict
 
-try:
-    from lotterytally.validators import parse_amount_cents as _shared_amount_parser
-except ModuleNotFoundError as exc:
-    if exc.name != f"{__package__}.validators":
-        raise
-    # 共享校验模块尚未合入时，仍可独立验收筛选模块。
-    _shared_amount_parser = None
+from lotterytally.validators import ValidationError, parse_amount_range
 
 
 __all__ = [
@@ -29,7 +22,6 @@ __all__ = [
 SORT_ORDERS = ("date_desc", "date_asc", "amount_asc", "amount_desc")
 DATE_PRESETS = ("today", "this_week", "this_month", "last_month")
 _DATE_PATTERN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
-_AMOUNT_PATTERN = re.compile(r"[0-9]+(?:\.[0-9]{1,2})?")
 
 
 class FilterCriteria(TypedDict):
@@ -72,27 +64,6 @@ def _parse_date(text: str, field: str, errors: dict[str, str]) -> str | None:
         return date.fromisoformat(text).isoformat()
     except ValueError:
         errors[field] = "请输入实际存在的日期，格式为 YYYY-MM-DD。"
-        return None
-
-
-def _parse_amount(text: str, field: str, errors: dict[str, str]) -> int | None:
-    if not text:
-        return None
-    try:
-        if not _AMOUNT_PATTERN.fullmatch(text):
-            raise ValueError
-        if _shared_amount_parser is not None:
-            cents = _shared_amount_parser(text)
-        else:
-            # 增加精度以保证大金额转换也不会受 Decimal 默认精度截断。
-            with localcontext() as context:
-                context.prec = max(28, len(text) + 2)
-                cents = int(Decimal(text) * 100)
-        if type(cents) is not int or cents <= 0:
-            raise ValueError
-        return cents
-    except (ValueError, TypeError, ArithmeticError):
-        errors[field] = "金额须大于 0，最多两位小数，不接受科学计数法。"
         return None
 
 
@@ -142,10 +113,11 @@ def parse_filters(query: Mapping[str, Any], today: date) -> FilterCriteria:
     entry_type = values["type"] or None
     if entry_type is not None and entry_type not in ("income", "expense"):
         errors["type"] = "收支类型须为 income 或 expense。"
-    minimum = _parse_amount(values["min_amount"], "min_amount", errors)
-    maximum = _parse_amount(values["max_amount"], "max_amount", errors)
-    if minimum is not None and maximum is not None and minimum > maximum:
-        errors["max_amount"] = "最大金额不能小于最小金额。"
+    minimum = maximum = None
+    try:
+        minimum, maximum = parse_amount_range(values["min_amount"], values["max_amount"])
+    except ValidationError as exc:
+        errors.update(exc.errors)
     order = values["sort"] or "date_desc"
     if order not in SORT_ORDERS:
         errors["sort"] = "请选择日期升序、日期降序、金额升序或金额降序。"

@@ -26,7 +26,11 @@
     const xAt = (index) => days.length === 1
       ? (left + right) / 2
       : left + index * (right - left) / (days.length - 1);
-    const yAt = (amount) => bottom - amount * (bottom - top) / (maximum || 1);
+    const rawStep = Math.max(1, maximum / 4);
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const tickStep = [1, 2, 5, 10].find((step) => step * magnitude >= rawStep) * magnitude;
+    const axisMax = Math.ceil(maximum / tickStep) * tickStep;
+    const yAt = (amount) => bottom - amount * (bottom - top) / (axisMax || 1);
 
     function svgElement(tag, attributes) {
       const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -56,9 +60,15 @@
       fill: "none",
       stroke: "currentColor"
     }));
-    addLabel(currency.format(0), left - 8, bottom + 4, "end");
-    if (maximum > 0) {
-      addLabel(currency.format(maximum / 100), left - 8, top + 4, "end");
+    for (let tick = 0; tick <= axisMax; tick += tickStep) {
+      const y = yAt(tick);
+      if (tick > 0) {
+        svg.append(svgElement("line", {
+          x1: left, y1: y, x2: right, y2: y,
+          stroke: "currentColor", "stroke-opacity": 0.15
+        }));
+      }
+      addLabel(currency.format(tick / 100), left - 8, y + 4, "end");
     }
 
     const labelCount = Math.min(days.length, 6);
@@ -85,6 +95,7 @@
       svg.append(line);
 
       days.forEach((day, index) => {
+        if (day[key] === 0) return;
         const dot = svgElement("circle", {
           cx: xAt(index), cy: yAt(day[key]), r: 3, fill: color
         });

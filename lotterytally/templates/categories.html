@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}类别管理 - PocketLedger 口袋账本{% endblock %}
+
+{% block head %}
+<style>
+  .category-panel { margin-bottom: 24px; padding: 24px; background: var(--surface, #fff); border: 1px solid var(--line, #ddd); border-radius: 12px; }
+  .category-panel h2 { margin-top: 0; font-size: 19px; }
+  .category-form, .category-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+  .category-field { display: grid; gap: 6px; }
+  .category-field input, .category-field select { max-width: 100%; padding: 9px 12px; border: 1px solid #a8b8b0; border-radius: 6px; background: #fff; }
+  .category-field input[aria-invalid="true"] { border-color: #a13232; }
+  .category-hint { color: var(--muted, #566); font-size: 14px; }
+  .category-error { color: #a13232; font-size: 14px; }
+  .category-notice { padding: 12px 16px; margin-bottom: 16px; background: #eaf4ee; border-radius: 6px; }
+  .category-list { list-style: none; padding: 0; margin: 0; }
+  .category-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 18px 0; border-top: 1px solid var(--line, #ddd); }
+  .category-info { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; overflow-wrap: anywhere; }
+  .category-status { padding: 3px 8px; border-radius: 4px; font-size: 13px; background: #eaf4ee; }
+  .category-inactive { background: #f0f0f0; color: #555; }
+  @media (max-width: 600px) {
+    .category-panel { padding: 16px; }
+    .category-actions { width: 100%; }
+    .category-actions form { max-width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="welcome-row">
+  <div>
+    <span class="eyebrow">PocketLedger</span>
+    <h1>类别管理</h1>
+    <p class="welcome-copy">管理收入和支出类别。停用后无法用于新账，历史记录仍会保留；改名后历史记录显示新名称。</p>
+  </div>
+</header>
+
+{% for message in get_flashed_messages(category_filter=["success"]) %}
+  <div class="category-notice" role="status">{{ message }}</div>
+{% endfor %}
+
+{% if errors %}
+  <div class="category-error" role="alert">
+    <p>操作未完成：</p>
+    <ul>{% for message in errors.values() %}<li>{{ message }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<section class="category-panel" aria-labelledby="create-heading">
+  <h2 id="create-heading">创建类别</h2>
+  <form method="post" action="{{ url_for('categories.categories_page') }}" class="category-form">
+    <div class="category-field">
+      <label for="category-type">收支类型</label>
+      {% set selected_type = form.get('type', 'expense') if editing_id is none else 'expense' %}
+      <select id="category-type" name="type" required>
+        {% if selected_type not in ['income', 'expense'] %}<option value="" selected>请选择收支类型</option>{% endif %}
+        <option value="expense" {% if selected_type == 'expense' %}selected{% endif %}>支出</option>
+        <option value="income" {% if selected_type == 'income' %}selected{% endif %}>收入</option>
+      </select>
+    </div>
+    <div class="category-field">
+      <label for="category-name">类别名称</label>
+      <input id="category-name" name="name" required maxlength="{{ name_max_length }}"
+             value="{{ form.get('name', '') if editing_id is none else '' }}"
+             aria-describedby="name-hint"
+             {% if editing_id is none and errors.get('name') %}aria-invalid="true"{% endif %}>
+    </div>
+    <button type="submit" class="button button-primary">创建类别</button>
+  </form>
+  <p id="name-hint" class="category-hint">最多 {{ name_max_length }} 个字符，同一收支类型下名称不能重复，停用类别也占用原名称。</p>
+</section>
+
+{% for entry_type, heading in [('expense', '支出类别'), ('income', '收入类别')] %}
+<section class="category-panel" aria-labelledby="{{ entry_type }}-heading">
+  <h2 id="{{ entry_type }}-heading">{{ heading }}</h2>
+  <ul class="category-list">
+  {% for category in categories if category.type == entry_type %}
+    <li class="category-row">
+      <div class="category-info">
+        <strong>{{ category.name }}</strong>
+        <span class="category-status {% if not category.active %}category-inactive{% endif %}">
+          {{ '已启用' if category.active else '已停用' }}
+        </span>
+      </div>
+      <div class="category-actions">
+        <form method="post" action="{{ url_for('categories.update_category_page', category_id=category.id) }}" class="category-form">
+          <input type="hidden" name="action" value="rename">
+          <div class="category-field">
+            <label for="rename-{{ category.id }}">修改“{{ category.name }}”名称</label>
+            <input id="rename-{{ category.id }}" name="name" required maxlength="{{ name_max_length }}"
+                   value="{{ form.get('name', category.name) if editing_id == category.id else category.name }}"
+                   {% if editing_id == category.id and errors.get('name') %}aria-invalid="true"{% endif %}>
+          </div>
+          <button type="submit" class="button button-secondary">保存名称</button>
+        </form>
+        <form method="post" action="{{ url_for('categories.update_category_page', category_id=category.id) }}">
+          <input type="hidden" name="action" value="{{ 'disable' if category.active else 'enable' }}">
+          <button type="submit" class="button button-secondary" aria-label="{{ '停用' if category.active else '启用' }}{{ category.name }}">
+            {{ '停用' if category.active else '重新启用' }}
+          </button>
+        </form>
+      </div>
+    </li>
+  {% else %}
+    <li class="category-hint">暂无{{ heading }}，可在上方创建。</li>
+  {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% endblock %}

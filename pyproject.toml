@@ -1,4 +1,24 @@
 [build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pocketledger"
+version = "0.1.0"
+description = "A local-first personal income and expense ledger"
+requires-python = ">=3.11"
+dependencies = ["Flask>=3.0,<4.0"]
+
+[project.scripts]
+pocketledger = "lotterytally.app:main"
+pocketledger-demo = "lotterytally.demo_data:main"
+
+[tool.setuptools]
+packages = ["lotterytally"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+lotterytally = ["templates/*.html", "static/css/*.css"]
 requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 

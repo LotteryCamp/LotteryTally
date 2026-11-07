@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f7f6">
+  <title>{% block title %}PocketLedger 口袋账本{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="PocketLedger 首页">
+        <span class="brand-mark" aria-hidden="true">PL</span>
+        <span class="brand-copy"><strong>PocketLedger</strong><small>口袋账本</small></span>
+      </a>
+      <nav class="main-nav" aria-label="主导航">
+        {% for item in navigation %}
+          <a href="{{ item.path }}" {% if request.path == item.path %}aria-current="page"{% endif %}>{{ item.label }}</a>
+        {% endfor %}
+      </nav>
+      <span class="local-indicator"><span></span> 本机账本</span>
+    </header>
+
+    <main class="page-content">
+      {% if page_title is defined %}
+        <section class="message-page" role="alert">
+          <span class="eyebrow">PocketLedger</span>
+          <h1>{{ page_title }}</h1>
+          <p>{{ content_message }}</p>
+          <a class="button button-secondary" href="/">返回首页</a>
+        </section>
+      {% else %}
+        {% block content %}{% endblock %}
+      {% endif %}
+    </main>
+
+    <footer class="site-footer"><span>数据保存在本机</span><span>PocketLedger</span></footer>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

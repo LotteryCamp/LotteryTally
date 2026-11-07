@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lotterytally"
+version = "0.1.0"
+description = "福州大学 2026 软件工程现场编程项目：个人记账本"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "鹦伟达"}]
+dependencies = [
+    "Flask>=3.1,<4",
+]
+
+[project.urls]
+Repository = "https://github.com/LotteryCamp/LotteryTally"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lotterytally", "lotterytally.*"]
+namespaces = false

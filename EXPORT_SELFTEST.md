@@ -24,7 +24,7 @@ python -m unittest discover -s test -v
 结果：
 
 ```
-Ran 24 tests in 0.019s
+Ran 35 tests in 0.019s
 
 OK
 ```
@@ -36,8 +36,8 @@ OK
 | `TestCentsToYuan` | 4 | 整数分转元、整数值浮点与字符串、非法值报错、负数报错 |
 | `TestExportCsv` | 8 | 表头、类型翻译、类别翻译、默认保持顺序、显式重排、空输入、空备注 |
 | `TestValidation` | 6 | 非字典记录、日期格式、不存在的日期、非法类型、错误定位、缺 `created_at` |
-| `TestCsvSafety` | 5 | 逗号引号、换行、公式注入（备注与类别名）、中文 |
-| `TestFilename` | 1 | 文件名纯 ASCII |
+| `TestCsvSafety` | 10 | 逗号引号、换行、公式注入（备注与类别名）、中文、首尾空格与换行保留、垫空格的公式 |
+| `TestFilename` | 7 | 文件名纯 ASCII、默认前缀、中文前缀回退、路径分隔符清除、合法字符保留、空前缀回退、超长截断 |
 
 ## 三、手工验收
 
@@ -105,3 +105,37 @@ BOM: ef bb bf
 - 本模块只生成 CSV 文本，不负责 HTTP 响应。下载响应头与路由挂载由 `stats.py` 负责。
 - 负数金额按数据错误拒绝。支出统一存正数，方向由 `type` 字段区分。
 - 日期必须为 `YYYY-MM-DD` 且真实存在，上游数据需符合该约定。
+
+## 六、代码评审修正记录
+
+PR 上收到三条意见，逐条处理后都补了测试兜住。
+
+### 1. 转义时把内容 strip 了，等于改写导出数据
+
+原写法在 `_escape_cell` 里先 `text.strip()` 再判断公式前缀，结果备注 `"  晚餐  "` 导出成 `"晚餐"`，尾随换行也被吃掉。用户输入的前导空格、尾随换行属于数据本身，转义函数没资格动它。
+
+改法：只对去掉前导空格的副本判断前缀，返回原文。公式防护不受影响，垫了空格的 `"  =SUM(A1)"` 仍然会被加上单引号。
+
+对应测试：`test_leading_and_trailing_space_preserved`、`test_leading_newline_preserved`、`test_trailing_newline_preserved`、`test_whitespace_only_note_kept`、`test_formula_behind_leading_space_blocked`。
+
+### 2. 自定义文件名前缀没有净化
+
+`suggest_filename` 文档写着"文件名只用 ASCII"，但前缀是原样拼进去的，`suggest_filename("账本")` 会返回中文文件名，传 `../etc/passwd` 还能把目录带进下载名。
+
+改法：除字母、数字、下划线、短横外的字符统一替换成下划线，净化后为空就退回默认前缀 `pocketledger`，长度截到 40 字符。
+
+实测：
+
+```
+None           -> pocketledger_20261107_145851.csv
+账本            -> pocketledger_20261107_145851.csv
+../etc/passwd  -> etc_passwd_20261107_145851.csv
+a\b            -> a_b_20261107_145851.csv
+my-ledger_2026 -> my-ledger_2026_20261107_145851.csv
+```
+
+对应测试：`test_chinese_prefix_falls_back_to_default`、`test_path_separator_in_prefix_removed`、`test_allowed_chars_kept`、`test_empty_prefix_falls_back`、`test_long_prefix_truncated`、`test_default_prefix_used`。
+
+### 3. 测试文件开头的运行命令写成 `-s tests`
+
+目录实际叫 `test`，照文档复制会报目录不存在。已改为 `python -m unittest discover -s test`，与本文第二节保持一致。

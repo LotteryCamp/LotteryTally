@@ -238,6 +238,32 @@ class TestCsvSafety(unittest.TestCase):
         csv_text = csv_export.export_csv(entries, CATEGORIES)
         self.assertIn("中文备注：早餐、地铁、工资", csv_text)
 
+    def test_leading_and_trailing_space_preserved(self):
+        """备注里的空格是用户输入的一部分，导出不能顺手剪掉。"""
+        entries = [make_entry(note="  晚餐  ")]
+        rows = parse(csv_export.export_csv(entries, CATEGORIES))
+        self.assertEqual(rows[1][4], "  晚餐  ")
+
+    def test_leading_newline_preserved(self):
+        entries = [make_entry(note="\n第二段")]
+        rows = parse(csv_export.export_csv(entries, CATEGORIES))
+        self.assertEqual(rows[1][4], "\n第二段")
+
+    def test_trailing_newline_preserved(self):
+        entries = [make_entry(note="结尾换行\n")]
+        rows = parse(csv_export.export_csv(entries, CATEGORIES))
+        self.assertEqual(rows[1][4], "结尾换行\n")
+
+    def test_formula_behind_leading_space_blocked(self):
+        """前面垫了空格的公式一样要挡，否则绕过去就等于没防。"""
+        rows = parse(csv_export.export_csv([make_entry(note="  =SUM(A1)")], CATEGORIES))
+        self.assertEqual(rows[1][4], "'  =SUM(A1)")
+
+    def test_whitespace_only_note_kept(self):
+        entries = [make_entry(note="   ")]
+        rows = parse(csv_export.export_csv(entries, CATEGORIES))
+        self.assertEqual(rows[1][4], "   ")
+
 
 class TestFilename(unittest.TestCase):
     def test_filename_is_ascii_csv(self):
@@ -245,6 +271,37 @@ class TestFilename(unittest.TestCase):
         self.assertTrue(name.endswith(".csv"))
         # 文件名必须是纯 ASCII，避免浏览器下载时中文乱码
         name.encode("ascii")
+
+    def test_default_prefix_used(self):
+        self.assertTrue(csv_export.suggest_filename().startswith("pocketledger_"))
+
+    def test_chinese_prefix_falls_back_to_default(self):
+        """中文前缀净化后什么都不剩，退回默认前缀而不是输出中文名。"""
+        name = csv_export.suggest_filename("账本")
+        self.assertTrue(name.startswith("pocketledger_"))
+        name.encode("ascii")
+
+    def test_path_separator_in_prefix_removed(self):
+        """带路径分隔符的前缀不能把目录带进下载名。"""
+        for prefix in ["../etc/passwd", "a\\b", "x/y"]:
+            with self.subTest(prefix=prefix):
+                name = csv_export.suggest_filename(prefix)
+                self.assertNotIn("/", name)
+                self.assertNotIn("\\", name)
+                name.encode("ascii")
+
+    def test_allowed_chars_kept(self):
+        name = csv_export.suggest_filename("my-ledger_2026")
+        self.assertTrue(name.startswith("my-ledger_2026_"))
+
+    def test_empty_prefix_falls_back(self):
+        for prefix in ["", None, "___"]:
+            with self.subTest(prefix=prefix):
+                self.assertTrue(csv_export.suggest_filename(prefix).startswith("pocketledger_"))
+
+    def test_long_prefix_truncated(self):
+        name = csv_export.suggest_filename("a" * 200)
+        self.assertLessEqual(len(name), 40 + 1 + 15 + 4)
 
 
 if __name__ == "__main__":

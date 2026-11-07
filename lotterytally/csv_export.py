@@ -34,6 +34,13 @@ VALID_TYPES = ("income", "expense")
 # 日期只认 2026-11-07 这种形式，具体是不是真实日期再单独验
 DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
 
+# 下载文件名的默认前缀，纯 ASCII
+DEFAULT_FILENAME_PREFIX = "pocketledger"
+
+# 文件名里除字母、数字、下划线、短横外的字符统一替换掉，
+# 中文、空格、控制字符、/ 和 \ 这些路径分隔符都在此列
+_UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
+
 
 class ExportError(ValueError):
     """账目数据不合法，或者导出过程中出现无法继续处理的情况。
@@ -95,11 +102,15 @@ def _escape_cell(value):
 
     以公式触发符开头的，前面补单引号。这是 OWASP 推荐的 CSV 注入防护做法，
     补完之后表格软件会按纯文本显示，不会去执行。
+
+    不能顺手把内容 strip 一遍：备注和类别名是用户输入的原文，前导空格、
+    尾随换行都属于数据本身，剪掉就等于改写了导出的账目内容。判断公式前缀
+    时只看去掉前导空格后的副本，返回的仍是原文。
     """
     text = "" if value is None else str(value)
-    # 只去首尾空白，中间的空格要保留（用户可能故意对齐）
-    text = text.strip()
-    if text and text[0] in FORMULA_PREFIX:
+    # 只对副本去前导空格，text 本身不动
+    probe = text.lstrip(" ")
+    if probe and probe[0] in FORMULA_PREFIX:
         return "'" + text
     return text
 
@@ -230,10 +241,20 @@ def export_csv(entries, categories, sort=False):
     return "\ufeff" + buf.getvalue()
 
 
-def suggest_filename(prefix="pocketledger"):
+def suggest_filename(prefix=DEFAULT_FILENAME_PREFIX):
     """生成下载文件名，带时间戳避免多次导出互相覆盖。
 
     文件名只用 ASCII：中文文件名在部分浏览器和 Windows 压缩包里会变乱码，
     这一步求稳。
+
+    前缀由调用方传入，可能是类别名之类的东西，先净化再用：除字母、数字、
+    下划线、短横外的字符一律换成下划线，净化后为空就退回默认前缀。
+    不净化的话，suggest_filename("账本") 会给出非 ASCII 文件名，
+    传进来一个带 / 或 \\ 的前缀还会让下载名带出目录，跟"安全的纯 ASCII
+    文件名"这个承诺对不上。
     """
-    return "{}_{}.csv".format(prefix, datetime.now().strftime("%Y%m%d_%H%M%S"))
+    safe = _UNSAFE_FILENAME_CHARS.sub("_", str(prefix or "")).strip("_")
+    if not safe:
+        safe = DEFAULT_FILENAME_PREFIX
+    safe = safe[:40]
+    return "{}_{}.csv".format(safe, datetime.now().strftime("%Y%m%d_%H%M%S"))

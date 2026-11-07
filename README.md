@@ -32,7 +32,7 @@ LotteryTally/
 
 ## 安装与筛选模块验证
 
-使用 Python 3.10 及以上版本，从仓库根目录执行：
+使用 Python 3.11 及以上版本，从仓库根目录执行：
 
 ```powershell
 python -m venv .venv

@@ -1,5 +1,7 @@
 """Smoke tests for the local web application shell."""
 
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -35,6 +37,58 @@ class AppShellTests(unittest.TestCase):
         expected = Path(__file__).resolve().parents[1] / "data" / "ledger.json"
 
         self.assertEqual(_default_ledger_path(), expected)
+
+    def test_homepage_reads_the_configured_ledger_when_storage_module_is_absent(self):
+        ledger = {
+            "categories": [{"id": "food", "name": "饮食", "type": "expense"}],
+            "entries": [
+                {
+                    "id": "entry-1",
+                    "date": "2026-11-07",
+                    "type": "expense",
+                    "amount_cents": 1234,
+                    "category_id": "food",
+                    "note": "午餐",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ledger.json"
+            path.write_text(json.dumps(ledger), encoding="utf-8")
+            app = create_app({"TESTING": True, "LEDGER_DATA_PATH": str(path)})
+
+            response = app.test_client().get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("午餐".encode(), response.data)
+        self.assertIn("12.34".encode(), response.data)
+
+    def test_stats_route_uses_the_configured_ledger_path(self):
+        ledger = {
+            "schema_version": 1,
+            "categories": [{"id": "food", "name": "饮食", "type": "expense", "active": True}],
+            "entries": [
+                {
+                    "id": "entry-1",
+                    "date": "2026-11-07",
+                    "type": "expense",
+                    "amount_cents": 5678,
+                    "category_id": "food",
+                    "note": "午餐",
+                    "created_at": "2026-11-07T12:00:00+08:00",
+                }
+            ],
+            "budgets": {},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "demo.json"
+            path.write_text(json.dumps(ledger), encoding="utf-8")
+            app = create_app({"TESTING": True, "LEDGER_DATA_PATH": str(path)})
+
+            response = app.test_client().get("/stats")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("56.78".encode(), response.data)
 
 
 if __name__ == "__main__":

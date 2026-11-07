@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import importlib.util
+import json
 import logging
 import os
 import secrets
@@ -37,7 +38,7 @@ NAV_ITEMS = (
 
 
 def _default_ledger_path() -> Path:
-    """Keep personal ledger data outside the repository."""
+    """Return the configured ledger path, defaulting to the repository data directory."""
     override = os.environ.get("LEDGER_DATA_PATH")
     if override:
         return Path(override).expanduser()
@@ -56,15 +57,19 @@ def _register_available_blueprints(app: Flask) -> None:
 
 def _home_data(app: Flask) -> dict[str, Any]:
     """Load home data through the shared storage and summary contracts."""
-    if (
-        importlib.util.find_spec("lotterytally.storage") is None
-        or importlib.util.find_spec("lotterytally.summary") is None
-    ):
+    if importlib.util.find_spec("lotterytally.summary") is None:
         return {"integration_ready": False, "transactions": [], "stats": {}}
 
-    storage = importlib.import_module("lotterytally.storage")
     summary = importlib.import_module("lotterytally.summary")
-    ledger = storage.load_ledger(path=app.config["LEDGER_DATA_PATH"])
+    data_path = Path(app.config["LEDGER_DATA_PATH"])
+    if importlib.util.find_spec("lotterytally.storage") is not None:
+        storage = importlib.import_module("lotterytally.storage")
+        ledger = storage.load_ledger(data_path)
+    elif data_path.is_file():
+        ledger = json.loads(data_path.read_text(encoding="utf-8"))
+    else:
+        ledger = {"entries": [], "categories": []}
+
     transactions = ledger["entries"]
     ordered = sorted(
         transactions,
@@ -77,7 +82,7 @@ def _home_data(app: Flask) -> dict[str, Any]:
     return {
         "integration_ready": True,
         "transactions": ordered[:10],
-        "stats": summary.summarize(transactions),
+        "stats": summary.summarize(transactions, ledger.get("categories", [])),
         "category_names": category_names,
     }
 
@@ -100,6 +105,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("POCKETLEDGER_SECRET_KEY") or secrets.token_hex(32),
         LEDGER_DATA_PATH=str(_default_ledger_path()),
+        DATA_FILE=str(_default_ledger_path()),
         MAX_CONTENT_LENGTH=2 * 1024 * 1024,
         TESTING=False,
     )
@@ -147,7 +153,9 @@ def main() -> None:
         help="账本 JSON 路径（默认 data/ledger.json）",
     )
     args = parser.parse_args()
-    app.config["LEDGER_DATA_PATH"] = str(args.data_file.expanduser().resolve())
+    data_path = str(args.data_file.expanduser().resolve())
+    app.config["LEDGER_DATA_PATH"] = data_path
+    app.config["DATA_FILE"] = data_path
     app.run(
         host="127.0.0.1",
         port=int(os.environ.get("PORT", "5000")),

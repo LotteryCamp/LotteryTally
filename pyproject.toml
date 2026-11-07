@@ -1,24 +1,4 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "pocketledger"
-version = "0.1.0"
-description = "A local-first personal income and expense ledger"
-requires-python = ">=3.11"
-dependencies = ["Flask>=3.0,<4.0"]
-
-[project.scripts]
-pocketledger = "lotterytally.app:main"
-pocketledger-demo = "lotterytally.demo_data:main"
-
-[tool.setuptools]
-packages = ["lotterytally"]
-include-package-data = true
-
-[tool.setuptools.package-data]
-lotterytally = ["templates/*.html", "static/css/*.css"]
 requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
@@ -27,18 +7,26 @@ name = "lotterytally"
 version = "0.1.0"
 description = "福州大学 2026 软件工程现场编程项目：个人记账本"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "鹦伟达"}]
-dependencies = [
-    "Flask>=3.1,<4",
-]
+dependencies = ["Flask>=3.1,<4"]
 
 [project.urls]
 Repository = "https://github.com/LotteryCamp/LotteryTally"
+
+[project.scripts]
+pocketledger = "lotterytally.app:main"
+pocketledger-demo = "lotterytally.demo_data:main"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["lotterytally", "lotterytally.*"]
 namespaces = false
+
+[tool.setuptools.package-data]
+lotterytally = ["templates/*.html", "static/css/*.css"]

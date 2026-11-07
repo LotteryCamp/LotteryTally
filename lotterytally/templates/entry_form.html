@@ -125,5 +125,5 @@
 
 {# 类别数据交给 entry.js 做收支类型联动；模板把完整类别表（含类型与停用状态）以 JSON 注入 #}
 <script id="entry-categories" type="application/json">{{ categories | tojson }}</script>
-<script src="{{ url_for('entry.static', filename='js/entry.js') }}"></script>
+<script src="{{ url_for('static', filename='js/entry.js') }}"></script>
 {% endblock %}

@@ -2,158 +2,187 @@
 
 {% macro field_error(name) %}
   {% if errors.get(name) %}
-    <span id="{{ name }}-error" role="alert">{{ errors[name] }}</span>
+    <span class="history-field-error" id="{{ name }}-error" role="alert">{{ errors[name] }}</span>
   {% endif %}
 {% endmacro %}
 
 {% block title %}账目流水{% endblock %}
 
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
+{% endblock %}
+
 {% block content %}
   {% set show_actions = edit_entry_endpoint or delete_entry_endpoint or (copy_enabled and new_entry_endpoint) %}
-  <h1>账目流水</h1>
-  {% if new_entry_endpoint %}
-    <p><a href="{{ url_for(new_entry_endpoint) }}">记一笔</a></p>
-  {% endif %}
+  <header class="history-heading">
+    <h1>账目流水</h1>
+    {% if new_entry_endpoint %}
+      <a class="button button-primary" href="{{ url_for(new_entry_endpoint) }}">记一笔</a>
+    {% endif %}
+  </header>
 
-  <form id="history-filters" method="get" action="{{ url_for('history.show_entries') }}">
+  <form class="history-filters" id="history-filters" method="get" action="{{ url_for('history.show_entries') }}">
     <fieldset>
       <legend>筛选流水</legend>
+      <div class="history-filter-grid">
+        <div class="history-field">
+          <label>快捷日期
+            <select name="preset">
+              <option value="">不限或手动选择</option>
+              {% for value, label in [('today', '今天'), ('this_week', '本周'), ('this_month', '本月'), ('last_month', '上月')] %}
+                <option value="{{ value }}"{% if form.get('preset') == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          {{ field_error('preset') }}
+        </div>
 
-      <label>快捷日期
-        <select name="preset">
-          <option value="">不限或手动选择</option>
-          {% for value, label in [('today', '今天'), ('this_week', '本周'), ('this_month', '本月'), ('last_month', '上月')] %}
-            <option value="{{ value }}"{% if form.get('preset') == value %} selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      {{ field_error('preset') }}
+        {% for name, label in [('start_date', '起始日期'), ('end_date', '结束日期')] %}
+          <div class="history-field">
+            <label>{{ label }}
+              <input type="{{ 'text' if errors.get(name) else 'date' }}" name="{{ name }}"
+                     value="{{ form.get(name, '') }}"{% if errors.get(name) %}
+                     placeholder="YYYY-MM-DD" aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+            </label>
+            {{ field_error(name) }}
+          </div>
+        {% endfor %}
 
-      {% for name, label in [('start_date', '起始日期'), ('end_date', '结束日期')] %}
-        <label>{{ label }}
-          <input type="{{ 'text' if errors.get(name) else 'date' }}" name="{{ name }}"
-                 value="{{ form.get(name, '') }}"{% if errors.get(name) %}
-                 placeholder="YYYY-MM-DD" aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
-        </label>
-        {{ field_error(name) }}
-      {% endfor %}
+        <div class="history-field">
+          <label>收支类型
+            <select name="type">
+              <option value="">全部类型</option>
+              <option value="income"{% if form.get('type') == 'income' %} selected{% endif %}>收入</option>
+              <option value="expense"{% if form.get('type') == 'expense' %} selected{% endif %}>支出</option>
+            </select>
+          </label>
+          {{ field_error('type') }}
+        </div>
 
-      <label>收支类型
-        <select name="type">
-          <option value="">全部类型</option>
-          <option value="income"{% if form.get('type') == 'income' %} selected{% endif %}>收入</option>
-          <option value="expense"{% if form.get('type') == 'expense' %} selected{% endif %}>支出</option>
-        </select>
-      </label>
-      {{ field_error('type') }}
+        <div class="history-field">
+          <label>类别
+            <select name="category_id">
+              <option value="">全部类别</option>
+              {% for category in categories %}
+                <option value="{{ category.id }}"{% if form.get('category_id') == category.id %} selected{% endif %}>
+                  {{ category.name }}（{{ '收入' if category.type == 'income' else '支出' }}{% if not category.active %}，已停用{% endif %}）
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+          {{ field_error('category_id') }}
+        </div>
 
-      <label>类别
-        <select name="category_id">
-          <option value="">全部类别</option>
-          {% for category in categories %}
-            <option value="{{ category.id }}"{% if form.get('category_id') == category.id %} selected{% endif %}>
-              {{ category.name }}（{{ '收入' if category.type == 'income' else '支出' }}{% if not category.active %}，已停用{% endif %}）
-            </option>
-          {% endfor %}
-        </select>
-      </label>
-      {{ field_error('category_id') }}
+        <div class="history-field">
+          <label>排序
+            <select name="sort">
+              {% for value, label in [('date_desc', '日期从新到旧'), ('date_asc', '日期从旧到新'), ('amount_asc', '金额从低到高'), ('amount_desc', '金额从高到低')] %}
+                <option value="{{ value }}"{% if form.get('sort') == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          {{ field_error('sort') }}
+        </div>
 
-      {% for name, label in [('min_amount', '最低金额（元）'), ('max_amount', '最高金额（元）')] %}
-        <label>{{ label }}
-          <input name="{{ name }}" inputmode="decimal" value="{{ form.get(name, '') }}"{% if errors.get(name) %}
-                 aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
-        </label>
-        {{ field_error(name) }}
-      {% endfor %}
+        {% for name, label in [('min_amount', '最低金额（元）'), ('max_amount', '最高金额（元）')] %}
+          <div class="history-field">
+            <label>{{ label }}
+              <input name="{{ name }}" inputmode="decimal" value="{{ form.get(name, '') }}"{% if errors.get(name) %}
+                     aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+            </label>
+            {{ field_error(name) }}
+          </div>
+        {% endfor %}
 
-      <label>备注关键词
-        <input name="q" value="{{ form.get('q', '') }}">
-      </label>
-      {{ field_error('q') }}
-
-      <label>排序
-        <select name="sort">
-          {% for value, label in [('date_desc', '日期从新到旧'), ('date_asc', '日期从旧到新'), ('amount_asc', '金额从低到高'), ('amount_desc', '金额从高到低')] %}
-            <option value="{{ value }}"{% if form.get('sort') == value %} selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      {{ field_error('sort') }}
-
-      <button type="submit">查询</button>
-      <a href="{{ url_for('history.show_entries') }}">清除筛选</a>
+        <div class="history-field">
+          <label>备注关键词
+            <input name="q" value="{{ form.get('q', '') }}">
+          </label>
+          {{ field_error('q') }}
+        </div>
+      </div>
+      <div class="history-filter-actions">
+        <button class="button button-primary" type="submit">查询</button>
+        <a class="button button-secondary" href="{{ url_for('history.show_entries') }}">清除筛选</a>
+      </div>
     </fieldset>
   </form>
 
   {% if not errors %}
-    {% if form.get('preset') %}
-      <p>日期范围 {{ query.start_date }} 至 {{ query.end_date }}</p>
-    {% endif %}
-    {% if entries %}
-      <p>共 {{ matched_count }} 笔</p>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">日期</th>
-            <th scope="col">收支类型</th>
-            <th scope="col">类别</th>
-            <th scope="col">金额（元）</th>
-            <th scope="col">备注</th>
-            {% if show_actions %}
-              <th scope="col">操作</th>
-            {% endif %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for entry in entries %}
-            {% set category = category_names.get(entry.category_id, entry.category_id) %}
-            {% set amount = '%d.%02d'|format(entry.amount_cents // 100, entry.amount_cents % 100) %}
-            <tr>
-              <td>{{ entry.date }}</td>
-              <td>{{ '收入' if entry.type == 'income' else '支出' }}</td>
-              <td>{{ category }}</td>
-              <td>{{ '+' if entry.type == 'income' else '−' }}{{ amount }}</td>
-              <td>{{ entry.note }}</td>
-              {% if show_actions %}
-                <td>
-                  {% if edit_entry_endpoint %}
-                    <a href="{{ url_for(edit_entry_endpoint, id=entry.id) }}">编辑</a>
-                  {% endif %}
-                  {% if copy_enabled and new_entry_endpoint %}
-                    <a href="{{ url_for(new_entry_endpoint, copy_from=entry.id) }}">复制</a>
-                  {% endif %}
-                  {% if delete_entry_endpoint %}
-                    <details>
-                      <summary>删除</summary>
-                      <p>确认删除 {{ entry.date }} 的{{ category }}账目，金额 {{ amount }} 元？</p>
-                      <form method="post" action="{{ url_for(delete_entry_endpoint, id=entry.id) }}">
-                        <button type="submit">确认删除</button>
-                      </form>
-                    </details>
-                  {% endif %}
-                </td>
-              {% endif %}
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% if page_count > 1 %}
-        <nav aria-label="流水分页">
-          {% if page > 1 %}
-            <a href="{{ url_for('history.show_entries', page=page - 1, **query) }}">上一页</a>
-          {% endif %}
-          <span>第 {{ page }} / {{ page_count }} 页</span>
-          {% if page < page_count %}
-            <a href="{{ url_for('history.show_entries', page=page + 1, **query) }}">下一页</a>
-          {% endif %}
-        </nav>
+    <section class="history-results" aria-labelledby="history-results-title">
+      <div class="section-heading">
+        <h2 id="history-results-title">查询结果</h2>
+        <p class="history-result-meta">共 {{ matched_count }} 笔</p>
+      </div>
+      {% if form.get('preset') %}
+        <p class="history-result-meta history-result-period">日期范围 {{ query.start_date }} 至 {{ query.end_date }}</p>
       {% endif %}
-    {% elif has_entries %}
-      <p>没有符合条件的记录。</p>
-    {% else %}
-      <p>账本还没有记录。</p>
-    {% endif %}
+      {% if entries %}
+        <div class="table-wrap" role="region" aria-label="账目流水表格" tabindex="0">
+          <table class="transaction-table history-table">
+            <thead>
+              <tr>
+                <th scope="col">日期</th>
+                <th scope="col">收支类型</th>
+                <th scope="col">类别</th>
+                <th scope="col" class="amount-column">金额（元）</th>
+                <th scope="col">备注</th>
+                {% if show_actions %}
+                  <th scope="col">操作</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in entries %}
+                {% set category = category_names.get(entry.category_id, entry.category_id) %}
+                {% set amount = '%d.%02d'|format(entry.amount_cents // 100, entry.amount_cents % 100) %}
+                <tr>
+                  <td class="date-cell">{{ entry.date }}</td>
+                  <td class="history-entry-type">{{ '收入' if entry.type == 'income' else '支出' }}</td>
+                  <td><span class="category-cell">{{ category }}</span></td>
+                  <td class="amount-cell {{ 'is-income' if entry.type == 'income' else 'is-expense' }}">{{ '+' if entry.type == 'income' else '−' }}{{ amount }}</td>
+                  <td class="note-cell">{{ entry.note }}</td>
+                  {% if show_actions %}
+                    <td>
+                      {% if edit_entry_endpoint %}
+                        <a class="text-link" href="{{ url_for(edit_entry_endpoint, id=entry.id) }}">编辑</a>
+                      {% endif %}
+                      {% if copy_enabled and new_entry_endpoint %}
+                        <a class="text-link" href="{{ url_for(new_entry_endpoint, copy_from=entry.id) }}">复制</a>
+                      {% endif %}
+                      {% if delete_entry_endpoint %}
+                        <details>
+                          <summary>删除</summary>
+                          <p>确认删除 {{ entry.date }} 的{{ category }}账目，金额 {{ amount }} 元？</p>
+                          <form method="post" action="{{ url_for(delete_entry_endpoint, id=entry.id) }}">
+                            <button type="submit">确认删除</button>
+                          </form>
+                        </details>
+                      {% endif %}
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if page_count > 1 %}
+          <nav class="history-pagination" aria-label="流水分页">
+            {% if page > 1 %}
+              <a class="button button-secondary" href="{{ url_for('history.show_entries', page=page - 1, **query) }}">上一页</a>
+            {% endif %}
+            <span>第 {{ page }} / {{ page_count }} 页</span>
+            {% if page < page_count %}
+              <a class="button button-secondary" href="{{ url_for('history.show_entries', page=page + 1, **query) }}">下一页</a>
+            {% endif %}
+          </nav>
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          <h3>{{ '没有符合条件的记录。' if has_entries else '账本还没有记录。' }}</h3>
+        </div>
+      {% endif %}
+    </section>
   {% endif %}
 
   <script>

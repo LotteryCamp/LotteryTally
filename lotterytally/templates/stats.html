@@ -219,9 +219,11 @@
   <div class="pl-card">
     <div class="pl-section-title">
       <span>收支统计与组合筛选</span>
+      {% if not errors %}
       <a class="pl-btn pl-btn-export" id="export-csv-link" href="{{ url_for('stats.export_stats_csv', **query_params) }}">
         导出当前筛选 CSV
       </a>
+      {% endif %}
     </div>
 
     {% if errors %}

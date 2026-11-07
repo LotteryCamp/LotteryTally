@@ -13,15 +13,12 @@
 
 from __future__ import annotations
 
-import calendar
 import csv
 import importlib
 import io
 import json
 import os
-import re
-from datetime import date, datetime, timedelta
-from decimal import Decimal, localcontext
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
@@ -36,179 +33,13 @@ from .summary import (
     summarize,
 )
 
-# 优先导入杜玉鹤的筛选模块（lotterytally.filters）；若主分支尚未合入则使用等价后备实现
-try:
-    from .filters import (
-        FilterValidationError,
-        filter_entries,
-        filters_to_query,
-        parse_filters,
-        sort_entries,
-    )
-except ModuleNotFoundError:
-    class FilterValidationError(ValueError):  # type: ignore[no-redef]
-        """筛选参数校验错误（后备实现）。"""
-
-        def __init__(self, errors: Mapping[str, str]):
-            self.errors = dict(errors)
-            super().__init__("；".join(self.errors.values()))
-
-    _DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
-    _AMOUNT_RE = re.compile(r"[0-9]+(?:\.[0-9]{1,2})?")
-    _SORT_ORDERS = ("date_desc", "date_asc", "amount_asc", "amount_desc")
-    _PRESETS = ("today", "this_week", "this_month", "last_month")
-
-    def parse_filters(query: Mapping[str, Any], today: date) -> dict[str, Any]:
-        if type(today) is not date:
-            raise TypeError("today 必须是 datetime.date。")
-        errors: dict[str, str] = {}
-        vals: dict[str, str] = {}
-        for k in (
-            "start_date",
-            "end_date",
-            "category_id",
-            "type",
-            "min_amount",
-            "max_amount",
-            "q",
-            "sort",
-            "preset",
-        ):
-            raw = query.get(k)
-            if raw is None:
-                vals[k] = ""
-            elif not isinstance(raw, str):
-                errors[k] = "查询参数必须为文本。"
-                vals[k] = ""
-            else:
-                vals[k] = raw.strip()
-
-        def _p_date(txt: str, field: str) -> str | None:
-            if not txt:
-                return None
-            if not _DATE_RE.fullmatch(txt):
-                errors[field] = "请输入实际存在的日期，格式为 YYYY-MM-DD。"
-                return None
-            try:
-                return date.fromisoformat(txt).isoformat()
-            except ValueError:
-                errors[field] = "请输入实际存在的日期，格式为 YYYY-MM-DD。"
-                return None
-
-        def _p_amount(txt: str, field: str) -> int | None:
-            if not txt:
-                return None
-            if not _AMOUNT_RE.fullmatch(txt):
-                errors[field] = "金额须大于 0，最多两位小数，不接受科学计数法。"
-                return None
-            with localcontext() as ctx:
-                ctx.prec = max(28, len(txt) + 2)
-                cents = int(Decimal(txt) * 100)
-            if cents <= 0:
-                errors[field] = "金额须大于 0，最多两位小数，不接受科学计数法。"
-                return None
-            return cents
-
-        start = _p_date(vals["start_date"], "start_date")
-        end = _p_date(vals["end_date"], "end_date")
-        preset = vals["preset"]
-        if vals["start_date"] or vals["end_date"]:
-            preset = ""
-        elif preset:
-            if preset not in _PRESETS:
-                errors["preset"] = "请选择今天、本周、本月或上月。"
-            else:
-                if preset == "today":
-                    s_day = e_day = today
-                elif preset == "this_week":
-                    s_day = today - timedelta(days=today.weekday())
-                    e_day = s_day + timedelta(days=6)
-                else:
-                    s_day = today.replace(day=1)
-                    if preset == "last_month":
-                        s_day = (s_day - timedelta(days=1)).replace(day=1)
-                    e_day = s_day.replace(day=calendar.monthrange(s_day.year, s_day.month)[1])
-                start, end = s_day.isoformat(), e_day.isoformat()
-
-        if start and end and start > end:
-            errors["end_date"] = "结束日期不能早于起始日期。"
-
-        entry_type = vals["type"] or None
-        if entry_type is not None and entry_type not in ("income", "expense"):
-            errors["type"] = "收支类型须为 income 或 expense。"
-
-        min_cents = _p_amount(vals["min_amount"], "min_amount")
-        max_cents = _p_amount(vals["max_amount"], "max_amount")
-        if min_cents is not None and max_cents is not None and min_cents > max_cents:
-            errors["max_amount"] = "最大金额不能小于最小金额。"
-
-        order = vals["sort"] or "date_desc"
-        if order not in _SORT_ORDERS:
-            errors["sort"] = "请选择日期升序、日期降序、金额升序或金额降序。"
-
-        if errors:
-            raise FilterValidationError(errors)
-
-        return {
-            "start_date": start,
-            "end_date": end,
-            "category_id": vals["category_id"] or None,
-            "type": entry_type,
-            "min_amount_cents": min_cents,
-            "max_amount_cents": max_cents,
-            "q": vals["q"],
-            "sort": order,
-            "preset": preset,
-        }
-
-    def filter_entries(
-        entries: Iterable[Mapping[str, Any]], criteria: Mapping[str, Any]
-    ) -> list[Mapping[str, Any]]:
-        start, end = criteria["start_date"], criteria["end_date"]
-        cat, etype = criteria["category_id"], criteria["type"]
-        mn, mx = criteria["min_amount_cents"], criteria["max_amount_cents"]
-        kw = criteria["q"]
-        return [
-            e
-            for e in entries
-            if (start is None or e["date"] >= start)
-            and (end is None or e["date"] <= end)
-            and (cat is None or e.get("category_id") == cat)
-            and (etype is None or e.get("type") == etype)
-            and (mn is None or e["amount_cents"] >= mn)
-            and (mx is None or e["amount_cents"] <= mx)
-            and (not kw or kw in (e.get("note") or ""))
-        ]
-
-    def sort_entries(
-        entries: Iterable[Mapping[str, Any]], order: str = "date_desc"
-    ) -> list[Mapping[str, Any]]:
-        if order not in _SORT_ORDERS:
-            raise FilterValidationError({"sort": "不支持的排序方式。"})
-        recent = sorted(
-            entries,
-            key=lambda e: (e["date"], str(e.get("created_at") or ""), str(e.get("id") or "")),
-            reverse=True,
-        )
-        if order == "date_asc":
-            return sorted(recent, key=lambda e: e["date"])
-        if order in ("amount_asc", "amount_desc"):
-            return sorted(
-                recent, key=lambda e: e["amount_cents"], reverse=(order == "amount_desc")
-            )
-        return recent
-
-    def filters_to_query(criteria: Mapping[str, Any]) -> dict[str, str]:
-        params = {
-            k: criteria[k]
-            for k in ("start_date", "end_date", "category_id", "type", "q", "sort")
-            if criteria.get(k)
-        }
-        for k in ("min_amount", "max_amount"):
-            cents = criteria.get(k + "_cents")
-            if cents is not None:
-                params[k] = f"{cents // 100}.{cents % 100:02d}"
-        return params
+from .filters import (
+    FilterValidationError,
+    filter_entries,
+    filters_to_query,
+    parse_filters,
+    sort_entries,
+)
 
 
 # 优先导入蔡信坡的 CSV 导出模块（lotterytally.csv_export）；若主分支尚未合入则使用等价后备实现
@@ -457,7 +288,9 @@ def _empty_criteria() -> dict[str, Any]:
     }
 
 
-def _form_state_from_args(args: Mapping[str, Any], criteria: Mapping[str, Any]) -> dict[str, str]:
+def _form_state_from_args(
+    args: Mapping[str, Any], criteria: Mapping[str, Any], *, preserve_input: bool = False
+) -> dict[str, str]:
     """生成用于筛选表单回显的字典（优先显示生效条件或用户输入值）。"""
     return {
         "start_date": str(args.get("start_date") or criteria.get("start_date") or "").strip(),
@@ -468,7 +301,9 @@ def _form_state_from_args(args: Mapping[str, Any], criteria: Mapping[str, Any]) 
         "max_amount": str(args.get("max_amount") or "").strip(),
         "q": str(args.get("q") or criteria.get("q") or "").strip(),
         "sort": str(args.get("sort") or criteria.get("sort") or "date_desc").strip(),
-        "preset": str(criteria.get("preset") or args.get("preset") or "").strip(),
+        "preset": str(
+            (args.get("preset") if preserve_input else criteria.get("preset")) or ""
+        ).strip(),
     }
 
 
@@ -515,7 +350,7 @@ def stats_page() -> tuple[str, int] | str:
         "count": summary_data["count"],
     }
 
-    form_values = _form_state_from_args(request.args, criteria)
+    form_values = _form_state_from_args(request.args, criteria, preserve_input=bool(errors))
 
     html = render_template(
         "stats.html",

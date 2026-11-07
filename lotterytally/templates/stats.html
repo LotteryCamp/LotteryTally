@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+
+{% block title %}收支统计 - PocketLedger 口袋账本{% endblock %}
+
+{% block content %}
+<style>
+  .pl-stats-wrap {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #1e293b;
+  }
+  .pl-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+  .pl-section-title {
+    margin: 0 0 14px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #0f172a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pl-error-banner {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+  .pl-error-banner ul {
+    margin: 6px 0 0 18px;
+    padding: 0;
+  }
+  .pl-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .pl-field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #475569;
+    margin-bottom: 4px;
+  }
+  .pl-field input,
+  .pl-field select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+  }
+  .pl-field-error {
+    color: #dc2626;
+    font-size: 12px;
+    margin-top: 3px;
+  }
+  .pl-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .pl-btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .pl-btn {
+    display: inline-block;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .pl-btn-primary {
+    background: #2563eb;
+    color: #ffffff;
+  }
+  .pl-btn-secondary {
+    background: #f1f5f9;
+    color: #334155;
+    border-color: #cbd5e1;
+  }
+  .pl-btn-export {
+    background: #059669;
+    color: #ffffff;
+  }
+  .pl-preset-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    align-items: center;
+  }
+  .pl-preset-tag {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    cursor: pointer;
+  }
+  .pl-preset-tag.active {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+  .pl-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .pl-kpi-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .pl-kpi-label {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 6px;
+  }
+  .pl-kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .pl-kpi-sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+  .pl-text-income { color: #16a34a; }
+  .pl-text-expense { color: #dc2626; }
+  .pl-text-balance { color: #0f172a; }
+  .pl-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .pl-table th,
+  .pl-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .pl-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+  }
+  .pl-progress-track {
+    width: 100%;
+    max-width: 180px;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .pl-progress-bar {
+    height: 100%;
+    background: #ef4444;
+    border-radius: 999px;
+  }
+  .pl-empty-state {
+    text-align: center;
+    padding: 28px 16px;
+    color: #64748b;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .pl-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .pl-bar-row {
+    margin-bottom: 10px;
+  }
+  .pl-bar-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .pl-scope-note {
+    font-size: 12px;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+</style>
+
+<div class="pl-stats-wrap">
+  <div class="pl-card">
+    <div class="pl-section-title">
+      <span>收支统计与组合筛选</span>
+      <a class="pl-btn pl-btn-export" id="export-csv-link" href="{{ url_for('stats.export_stats_csv', **query_params) }}">
+        导出当前筛选 CSV
+      </a>
+    </div>
+
+    {% if errors %}
+    <div class="pl-error-banner" role="alert">
+      <strong>筛选条件存在错误，请修正后重试：</strong>
+      <ul>
+        {% for field, message in errors.items() %}
+        <li data-error-field="{{ field }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form id="stats-filter-form" method="get" action="{{ url_for('stats.stats_page') }}">
+      <input type="hidden" name="preset" id="filter-preset-input" value="{{ form.preset }}">
+      <div class="pl-preset-bar">
+        <span style="font-size:13px;color:#475569;">快捷日期：</span>
+        {% for key, label in [('today', '今天'), ('this_week', '本周'), ('this_month', '本月'), ('last_month', '上月')] %}
+        <button type="button"
+                class="pl-preset-tag {% if form.preset == key %}active{% endif %}"
+                onclick="applyStatsPreset('{{ key }}')">
+          {{ label }}
+        </button>
+        {% endfor %}
+      </div>
+
+      <div class="pl-filter-grid">
+        <div class="pl-field">
+          <label for="filter-start-date">起始日期</label>
+          <input type="date" id="filter-start-date" name="start_date" value="{{ form.start_date }}" onchange="clearStatsPreset()">
+          {% if errors.start_date %}<div class="pl-field-error">{{ errors.start_date }}</div>{% endif %}
+        </div>
+
+        <div class="pl-field">
+          <label for="filter-end-date">结束日期</label>
+          <input type="date" id="filter-end-date" name="end_date" value="{{ form.end_date }}" onchange="clearStatsPreset()">
+          {% if errors.end_date %}<div class="pl-field-error">{{ errors.end_date }}</div>{% endif %}
+        </div>
+
+        <div class="pl-field">
+          <label for="filter-category">类别（含已停用）</label>
+          <select id="filter-category" name="category_id">
+            <option value="">全部类别</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}" {% if form.category_id == cat.id %}selected{% endif %}>
+              {{ cat.name }}{% if cat.active is defined and not cat.active %}（已停用）{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          {% if errors.category_id %}<div class="pl-field-error">{{ errors.category_id }}</div>{% endif %}
+        </div>
+
+        <div class="pl-field">
+          <label for="filter-type">收支类型</label>
+          <select id="filter-type" name="type">
+            <option value="">全部类型</option>
+            <option value="expense" {% if form.type == 'expense' %}selected{% endif %}>支出</option>
+            <option value="income" {% if form.type == 'income' %}selected{% endif %}>收入</option>
+          </select>
+          {% if errors.type %}<div class="pl-field-error">{{ errors.type }}</div>{% endif %}
+        </div>
+
+        <div class="pl-field">
+          <label for="filter-min-amount">最小金额（元）</label>
+          <input type="text" id="filter-min-amount" name="min_amount" placeholder="如 30 或 30.50" value="{{ form.min_amount }}">
+          {% if errors.min_amount %}<div class="pl-field-error">{{ errors.min_amount }}</div>{% endif %}
+        </div>
+
+        <div class="pl-field">
+          <label for="filter-max-amount">最大金额（元）</label>
+          <input type="text" id="filter-max-amount" name="max_amount" placeholder="如 500" value="{{ form.max_amount }}">
+          {% if errors.max_amount %}<div class="pl-field-error">{{ errors.max_amount }}</div>{% endif %}
+        </div>
+
+        <div class="pl-field">
+          <label for="filter-q">备注关键词</label>
+          <input type="text" id="filter-q" name="q" placeholder="搜索备注子串" value="{{ form.q }}">
+        </div>
+
+        <div class="pl-field">
+          <label for="filter-sort">排序方式</label>
+          <select id="filter-sort" name="sort">
+            <option value="date_desc" {% if form.sort == 'date_desc' %}selected{% endif %}>日期降序（最新优先）</option>
+            <option value="date_asc" {% if form.sort == 'date_asc' %}selected{% endif %}>日期升序（最早优先）</option>
+            <option value="amount_desc" {% if form.sort == 'amount_desc' %}selected{% endif %}>金额从高到低</option>
+            <option value="amount_asc" {% if form.sort == 'amount_asc' %}selected{% endif %}>金额从低到高</option>
+          </select>
+          {% if errors.sort %}<div class="pl-field-error">{{ errors.sort }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="pl-filter-actions">
+        <div class="pl-btn-group">
+          <button type="submit" class="pl-btn pl-btn-primary">应用筛选</button>
+          <a href="{{ url_for('stats.stats_page') }}" class="pl-btn pl-btn-secondary">重置条件</a>
+        </div>
+        <span style="font-size:13px;color:#64748b;">
+          当前匹配 <strong>{{ summary.count }}</strong> 笔记录
+        </span>
+      </div>
+    </form>
+  </div>
+
+  <!-- 核心统计卡片 -->
+  <div class="pl-kpi-grid">
+    <div class="pl-kpi-card" id="kpi-income">
+      <div class="pl-kpi-label">总收入（元）</div>
+      <div class="pl-kpi-value pl-text-income">{{ summary.income_yuan }}</div>
+      <div class="pl-kpi-sub">共 {{ summary.income_count }} 笔收入</div>
+    </div>
+
+    <div class="pl-kpi-card" id="kpi-expense">
+      <div class="pl-kpi-label">总支出（元）</div>
+      <div class="pl-kpi-value pl-text-expense">{{ summary.expense_yuan }}</div>
+      <div class="pl-kpi-sub">共 {{ summary.expense_count }} 笔支出</div>
+    </div>
+
+    <div class="pl-kpi-card" id="kpi-balance">
+      <div class="pl-kpi-label">收支结余（元）</div>
+      <div class="pl-kpi-value pl-text-balance">{{ summary.balance_yuan }}</div>
+      <div class="pl-kpi-sub">结余 = 总收入 - 总支出</div>
+    </div>
+
+    <div class="pl-kpi-card" id="kpi-count">
+      <div class="pl-kpi-label">匹配记录数（笔）</div>
+      <div class="pl-kpi-value">{{ summary.count }}</div>
+      <div class="pl-kpi-sub">导出 CSV 包含全部匹配记录</div>
+    </div>
+  </div>
+
+  <!-- 月度对比（独立全账本口径） -->
+  <div class="pl-card" id="monthly-comparison-card">
+    <div class="pl-section-title">
+      <span>月度同期支出对比</span>
+      <span class="pl-scope-note">{{ monthly_comparison.scope_note }}</span>
+    </div>
+    <div class="pl-kpi-grid" style="margin-bottom:0;">
+      <div>
+        <div class="pl-kpi-label">本月至今支出（{{ monthly_comparison.current_start }} 至 {{ monthly_comparison.current_end }}）</div>
+        <div class="pl-kpi-value pl-text-expense">{{ monthly_comparison.current_expense_yuan }} 元</div>
+      </div>
+      <div>
+        <div class="pl-kpi-label">上月同期支出（{{ monthly_comparison.previous_start }} 至 {{ monthly_comparison.previous_end }}）</div>
+        <div class="pl-kpi-value">{{ monthly_comparison.previous_expense_yuan }} 元</div>
+      </div>
+      <div>
+        <div class="pl-kpi-label">同期支出差额 / 变化</div>
+        <div class="pl-kpi-value">
+          {% if monthly_comparison.diff_expense_cents > 0 %}+{% endif %}{{ monthly_comparison.diff_expense_yuan }} 元
+          <span style="font-size:14px;font-weight:500;color:#64748b;">（{{ monthly_comparison.change_text }}）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分类支出汇总表格 -->
+  <div class="pl-card" id="category-summary-card">
+    <div class="pl-section-title">
+      <span>分类支出汇总（按支出降序）</span>
+    </div>
+    {% if summary.by_category %}
+    <table class="pl-table" id="category-summary-table">
+      <thead>
+        <tr>
+          <th>类别</th>
+          <th>笔数</th>
+          <th>支出金额（元）</th>
+          <th>占总支出比例</th>
+          <th>比例条</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in summary.by_category %}
+        <tr data-category-id="{{ item.category_id }}">
+          <td><strong>{{ item.category_name }}</strong></td>
+          <td>{{ item.count }} 笔</td>
+          <td class="pl-text-expense">{{ item.amount_yuan }}</td>
+          <td>{{ item.share_text }}</td>
+          <td>
+            <div class="pl-progress-track">
+              <div class="pl-progress-bar" style="width: {{ item.percent if item.percent <= 100 else 100 }}%;"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="pl-empty-state" id="category-empty-state">
+      当前筛选条件下暂无支出记录，分类汇总为 0.00 元。
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 图表数据 JSON 注入（供 _charts.html 与 static/js/charts.js 使用） -->
+  <script id="pocketledger-chart-data" type="application/json">{{ chart_data | tojson }}</script>
+  <script>
+    window.POCKETLEDGER_CHART_DATA = {{ chart_data | tojson }};
+  </script>
+
+  <!-- 优先加载庄凯堃负责的 _charts.html 局部模板；若尚未合入则展示内置 SVG 图表 -->
+  {% include "_charts.html" ignore missing %}
+
+  <div class="pl-charts-grid" id="builtin-charts-section">
+    <!-- 分类支出条形图 -->
+    <div class="pl-card">
+      <div class="pl-section-title"><span>分类支出条形图</span></div>
+      {% if summary.by_category %}
+      <div>
+        {% for item in summary.by_category %}
+        <div class="pl-bar-row">
+          <div class="pl-bar-meta">
+            <span>{{ item.category_name }}</span>
+            <span>{{ item.amount_yuan }} 元（{{ item.share_text }}）</span>
+          </div>
+          <div class="pl-progress-track" style="max-width:none;height:12px;">
+            <div class="pl-progress-bar" style="width: {{ item.percent if item.percent <= 100 else 100 }}%;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="pl-empty-state">暂无分类支出数据可绘制图表</div>
+      {% endif %}
+    </div>
+
+    <!-- 每日收支趋势图 -->
+    <div class="pl-card">
+      <div class="pl-section-title"><span>每日收支趋势（缺失日自动补 0）</span></div>
+      {% if daily_totals %}
+      <div style="max-height:260px;overflow-y:auto;">
+        <table class="pl-table" id="daily-trend-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>当日收入（元）</th>
+              <th>当日支出（元）</th>
+              <th>当日结余（元）</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for day in daily_totals %}
+            <tr data-day="{{ day.date }}">
+              <td>{{ day.date }}</td>
+              <td class="pl-text-income">{{ day.income_yuan }}</td>
+              <td class="pl-text-expense">{{ day.expense_yuan }}</td>
+              <td>{{ day.balance_yuan }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="pl-empty-state" id="daily-empty-state">暂无匹配的每日收支趋势数据</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+  <script>
+    function clearStatsPreset() {
+      var presetInput = document.getElementById("filter-preset-input");
+      if (presetInput) {
+        presetInput.value = "";
+      }
+    }
+    function applyStatsPreset(presetKey) {
+      var presetInput = document.getElementById("filter-preset-input");
+      var startInput = document.getElementById("filter-start-date");
+      var endInput = document.getElementById("filter-end-date");
+      if (presetInput) presetInput.value = presetKey;
+      if (startInput) startInput.value = "";
+      if (endInput) endInput.value = "";
+      var form = document.getElementById("stats-filter-form");
+      if (form) form.submit();
+    }
+    // 当 _charts.html 已合入并渲染 #expense-chart 时，隐藏内置后备图表，避免页面重复展示两套图表
+    if (document.getElementById("expense-chart")) {
+      var builtinCharts = document.getElementById("builtin-charts-section");
+      if (builtinCharts) {
+        builtinCharts.style.display = "none";
+      }
+    }
+  </script>
+{% endblock %}

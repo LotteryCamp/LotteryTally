@@ -2,8 +2,6 @@
 
 福州大学 2026 软件工程现场编程项目。项目计划实现一个仅在本机运行的个人收支记账网页应用，使用 Flask、Jinja2 和本地 JSON 文件。
 
-> 当前状态：开发中。应用入口与首页骨架已准备；其他成员负责的存储、记账、流水和统计模块仍在集成。未接入的功能不会显示为已完成。
-
 ## 计划功能
 
 - 记录收入和支出：日期、金额、类别、备注。
@@ -20,7 +18,21 @@
 
 ## 安装与启动
 
-Windows PowerShell：
+## 项目结构
+
+```text
+LotteryTally/
+├── pyproject.toml        # 项目信息、Python 版本、依赖和构建配置
+├── lotterytally/         # 应用源码包
+│   ├── __init__.py
+│   └── filters.py        # 筛选、查询参数和排序
+├── test/                 # 自动化测试
+└── docs/filters.md       # 筛选模块接口与接入说明
+```
+
+## 安装与筛选模块验证
+
+使用 Python 3.10 及以上版本，从仓库根目录执行：
 
 ```powershell
 python -m venv .venv
@@ -57,3 +69,7 @@ python -m venv .venv
 - 提交标题按团队约定使用 `<type>(<scope>): <subject>`，例如 `feat(home): add recent ledger summary`。
 - 模块接口、人员分工和验收方式以团队确认的《PocketLedger 现场编程与技术实施方案》为准。
 - Agent 可协助负责人实现本人模块；负责人需审阅、运行验证并能说明提交内容。团队成员不得代做或冒认他人贡献。
+
+业务模块使用 `from lotterytally.filters import ...` 导入筛选接口。
+新增依赖统一写入 `pyproject.toml` 的 `project.dependencies`。
+当前筛选模块可以独立验证，完整网页启动方式由应用入口模块完成后补充。

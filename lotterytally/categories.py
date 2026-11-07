@@ -182,6 +182,8 @@ def categories_page():
         return _render_categories(
             errors={error.field: str(error)}, form=request.form
         ), 400
+    except storage.LedgerCorruptedError:
+        return handle_storage_error(None)
     except (storage.StorageError, OSError):
         return _render_storage_error()
 

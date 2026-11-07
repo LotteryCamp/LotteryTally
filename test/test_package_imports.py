@@ -1,105 +1,93 @@
-"""Regression checks for package-qualified shared-validator imports."""
+"""Integration checks for the real shared amount-validation contract."""
 
-import json
+from datetime import date
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 
+from lotterytally import filters, validators
 
-FILTERS_SOURCE = Path(__file__).resolve().parents[1] / "lotterytally" / "filters.py"
+
+TODAY = date(2026, 11, 7)
 
 
 class PackageImportsTests(unittest.TestCase):
-    def run_isolated_import(self, script, package_validator=None,
-                            top_level_validator=None):
-        """Import a copy of the real module with isolated temporary dependencies."""
+    def test_filters_use_the_real_shared_amount_range_and_error_type(self):
+        self.assertIs(filters.parse_amount_range, validators.parse_amount_range)
+        self.assertIs(filters.ValidationError, validators.ValidationError)
+
+    def test_valid_ranges_match_shared_rules_including_exact_large_amounts(self):
+        for minimum, maximum in (
+            ("", ""), ("0.01", ""), ("", "45.50"),
+            ("30", "50"), ("45.5", "45.50"), (" 0.29 ", "1"),
+            ("1234567890123456789012345678901234567890.12",
+             "1234567890123456789012345678901234567890.12"),
+        ):
+            with self.subTest(minimum=minimum, maximum=maximum):
+                expected = validators.parse_amount_range(minimum, maximum)
+                criteria = filters.parse_filters({
+                    "min_amount": minimum, "max_amount": maximum,
+                }, TODAY)
+                self.assertEqual(
+                    (criteria["min_amount_cents"], criteria["max_amount_cents"]),
+                    expected,
+                )
+
+    def test_invalid_ranges_preserve_shared_field_errors(self):
+        for minimum, maximum in (
+            ("0", ""), ("-1", "12.345"), ("1e2", "50"),
+            ("４５", ""), ("1,000", "50"), ("50", "30"),
+        ):
+            with self.subTest(minimum=minimum, maximum=maximum):
+                with self.assertRaises(validators.ValidationError) as shared_error:
+                    validators.parse_amount_range(minimum, maximum)
+                with self.assertRaises(filters.FilterValidationError) as error:
+                    filters.parse_filters({
+                        "min_amount": minimum, "max_amount": maximum,
+                    }, TODAY)
+                self.assertEqual(error.exception.errors, shared_error.exception.errors)
+
+    def test_amount_errors_are_aggregated_with_other_filter_fields(self):
+        with self.assertRaises(validators.ValidationError) as shared_error:
+            validators.parse_amount_range("-1", "12.345")
+        with self.assertRaises(filters.FilterValidationError) as error:
+            filters.parse_filters({
+                "min_amount": "-1", "max_amount": "12.345",
+                "start_date": "2026-02-29", "type": "transfer", "sort": "random",
+            }, TODAY)
+        self.assertTrue({"start_date", "type", "sort"}.issubset(error.exception.errors))
+        for field, message in shared_error.exception.errors.items():
+            self.assertEqual(error.exception.errors[field], message)
+
+    def test_missing_shared_validator_is_reported_instead_of_using_a_fallback(self):
         with tempfile.TemporaryDirectory(prefix="lotterytally-imports-") as folder:
             sandbox = Path(folder)
             package = sandbox / "lotterytally"
             package.mkdir()
             (package / "__init__.py").write_text("", encoding="utf-8")
-            shutil.copy2(FILTERS_SOURCE, package / "filters.py")
-            if package_validator is not None:
-                (package / "validators.py").write_text(
-                    textwrap.dedent(package_validator), encoding="utf-8")
-            if top_level_validator is not None:
-                (sandbox / "validators.py").write_text(
-                    textwrap.dedent(top_level_validator), encoding="utf-8")
-
-            # -I excludes user-site packages and PYTHONPATH; insert only this fixture.
-            bootstrap = f"import sys\nsys.path.insert(0, {str(sandbox)!r})\n"
+            shutil.copy2(Path(filters.__file__), package / "filters.py")
+            (sandbox / "validators.py").write_text(
+                'raise RuntimeError("A top-level validators module was imported")\n',
+                encoding="utf-8",
+            )
+            script = (
+                f"import sys\nsys.path.insert(0, {str(sandbox)!r})\n"
+                "try:\n"
+                "    import lotterytally.filters\n"
+                "except ModuleNotFoundError as error:\n"
+                "    print(error.name)\n"
+                "else:\n"
+                "    raise AssertionError('Missing shared validation was hidden')\n"
+            )
             result = subprocess.run(
-                [sys.executable, "-I", "-B", "-c",
-                 bootstrap + textwrap.dedent(script)],
-                cwd=sandbox, capture_output=True, text=True, encoding="utf-8",
-                timeout=30,
+                [sys.executable, "-I", "-B", "-c", script], cwd=sandbox,
+                capture_output=True, text=True, encoding="utf-8", timeout=30,
             )
-            self.assertEqual(
-                result.returncode, 0,
-                f"Isolated import failed:\n{result.stdout}\n{result.stderr}",
-            )
-            return json.loads(result.stdout)
-
-    def test_missing_package_validator_uses_fallback_and_ignores_top_level_module(self):
-        result = self.run_isolated_import(
-            """
-            import json
-            from datetime import date
-            from lotterytally.filters import parse_filters
-
-            criteria = parse_filters({"min_amount": "0.29"}, date(2026, 11, 7))
-            print(json.dumps({"cents": criteria["min_amount_cents"]}))
-            """,
-            top_level_validator="""
-            raise RuntimeError("The top-level validators module must not be imported")
-            """,
-        )
-        self.assertEqual(result, {"cents": 29})
-
-    def test_package_validator_is_called_for_amount_conversion(self):
-        result = self.run_isolated_import(
-            """
-            import json
-            from datetime import date
-            from lotterytally import validators
-            from lotterytally.filters import parse_filters
-
-            criteria = parse_filters({"min_amount": "45.50"}, date(2026, 11, 7))
-            print(json.dumps({
-                "cents": criteria["min_amount_cents"],
-                "calls": validators.calls,
-            }))
-            """,
-            package_validator="""
-            calls = []
-
-            def parse_amount_cents(text):
-                calls.append(text)
-                return 4550
-            """,
-        )
-        self.assertEqual(result, {"cents": 4550, "calls": ["45.50"]})
-
-    def test_missing_dependency_inside_package_validator_is_not_hidden(self):
-        missing_dependency = "lotterytally_test_missing_dependency_674c990f"
-        result = self.run_isolated_import(
-            """
-            import json
-
-            try:
-                import lotterytally.filters
-            except ModuleNotFoundError as exc:
-                print(json.dumps({"missing": exc.name}))
-            else:
-                raise AssertionError("A shared-validator dependency error was hidden")
-            """,
-            package_validator=f"import {missing_dependency}\n",
-        )
-        self.assertEqual(result, {"missing": missing_dependency})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "lotterytally.validators")
 
 
 if __name__ == "__main__":

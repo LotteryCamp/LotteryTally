@@ -10,7 +10,12 @@ from lotterytally.app import _default_ledger_path, create_app
 
 class AppShellTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app({"TESTING": True})
+        self.folder = tempfile.TemporaryDirectory(prefix="lotterytally-app-")
+        self.addCleanup(self.folder.cleanup)
+        path = str(Path(self.folder.name) / "ledger.json")
+        self.app = create_app({
+            "TESTING": True, "LEDGER_DATA_PATH": path, "DATA_FILE": path,
+        })
         self.client = self.app.test_client()
 
     def test_homepage_renders_without_backend_modules(self):

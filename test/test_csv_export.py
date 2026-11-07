@@ -2,7 +2,7 @@
 csv_export.py 的单元测试
 
 负责人：蔡信坡 162404103
-运行：python -m unittest discover -s tests
+运行：python -m unittest discover -s test
 
 覆盖方案 6.2 节对导出的四条要求：
     - 中文可读（BOM）
